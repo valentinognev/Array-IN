@@ -6,6 +6,8 @@
 clear all
 % close all
 
+showfigures=false;
+
 pathScript = fileparts(matlab.desktop.editor.getActiveFilename)
 pathData = fullfile(pathScript,"data");
 mkdir(pathData);
@@ -46,8 +48,8 @@ sig_pos = 1e-1;        % Sigma position update
 % estimate a constant bias
 sig_b_a = 0;
 sig_b_g = 0;
-sig_b_a_init = 0.2;          % From  Carlsson2021
-sig_b_g_init = deg2rad(1);   % From  Carlsson2021
+sig_b_a_init = 0.2;          % accelerometer bias value, From  Carlsson2021
+sig_b_g_init = deg2rad(1);   % gyro bias value, From  Carlsson2021
 
 
 % phi in [0, pi]
@@ -74,15 +76,16 @@ vels = compute_omega(m); % calculation of omega and omega_dot in navigation and 
 % set(f,'WindowStyle','docked')
 % clf
 
-
-figure();
-vels = mergeStruct(m, vels);
-plot_angular_velocities(t, vels)
-scale_figure(gcf, 1.5);
-figure
-hold on 
-plot(t, rad2deg(norm_time(vels.w_b)), "b-")
-plot(t, rad2deg(norm_time(vels.w_n)), "r--")
+if showfigures
+    figure(1);
+    vels = mergeStruct(m, vels);
+    plot_angular_velocities(t, vels)
+    scale_figure(gcf, 1.5);
+    figure
+    hold on
+    plot(t, rad2deg(norm_time(vels.w_b)), "b-")
+    plot(t, rad2deg(norm_time(vels.w_n)), "r--")
+end
 %%
 
 phi = m.phi;
@@ -106,15 +109,15 @@ for n = 1:N
 end
 %%
 
-    
-figure
-eul = my_rotm2eul(R_nb_true);
-plot(t,rad2deg(eul'))
-legend("roll", "pitch", "yaw")
-grid on
+if showfigures    
+    figure(2);
+    eul = my_rotm2eul(R_nb_true);
+    plot(t,rad2deg(eul'))
+    legend("roll", "pitch", "yaw")
+    grid on
+end
 
-
-%%
+%% sensor positions in body frame
 pos_b = [-0.0095    0.0032    0.0010
    -0.0095    0.0032   -0.0010
    -0.0095    0.0095    0.0010
@@ -150,44 +153,44 @@ pos_b = [-0.0095    0.0032    0.0010
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
 i_IMU_select = 1:32;
-pos_b = pos_b(:,i_IMU_select)
+pos_b = pos_b(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
-r_tot = pos_b - mean(pos_b,2);
+r_tot = pos_b - mean(pos_b,2);   % Centroid of sensor positions
 
 %%
-figure
-subplot(1,2,1)
-plot(r_tot(1,1:2:end)*1e3,r_tot(2,1:2:end)*1e3,"x")
-axis("equal")
-grid on
-L = 15;
-xlim([-L,L])
-ylim([-L,L])
-% xlim([-5,5]*1e-3)
-xlabel("[mm]")
-ylabel("[mm]")
-title("Topside")
-subplot(1,2,2)
-plot(r_tot(1,2:2:end)*1e3,r_tot(2,2:2:end)*1e3,"x")
-grid on
-axis("equal")
-xlim([-L,L])
-ylim([-L,L])
-xlabel("[mm]")
-ylabel("[mm]")
-title("underside")
-
+if showfigures
+    figure(3);
+    subplot(1,2,1)
+    plot(r_tot(1,1:2:end)*1e3,r_tot(2,1:2:end)*1e3,"x")
+    axis("equal")
+    grid on
+    L = 15;
+    xlim([-L,L])
+    ylim([-L,L])
+    % xlim([-5,5]*1e-3)
+    xlabel("[mm]")
+    ylabel("[mm]")
+    title("Topside")
+    subplot(1,2,2)
+    plot(r_tot(1,2:2:end)*1e3,r_tot(2,2:2:end)*1e3,"x")
+    grid on
+    axis("equal")
+    xlim([-L,L])
+    ylim([-L,L])
+    xlabel("[mm]")
+    ylabel("[mm]")
+    title("underside")
+end
 %%
 
 K = size(pos_b,2); % Number of acc triads
 inds = reshape(1:3*K,3,[]);
 
-
 settings_default = struct;
 settings_default.save_full_covariances = false;
 settings_default.save_jacobians = false;
 settings_default.verbose = true;
-settings_default.T = Ts;
+settings_default.T = Ts;                            % Sampling period
 settings_default.g = [0; 0; -9.81];
 
 
@@ -196,7 +199,7 @@ settings_default.r = r_tot;
 
 %% Generate the motion 
 
-f_pos = [1 2 3 ]/T_end*2*pi*time_factor;
+f_pos = [1 2 3 ]/T_end*2*pi*time_factor; % frequency for each axis
 
 
 p_true = zeros(3,N);
@@ -211,43 +214,44 @@ for i = 1:3
 end
 %%
 
-figure
-hold on
-for i = 1:3
-    plot(t, p_true(i,:))
+if showfigures
+    figure(4);
+    hold on
+    for i = 1:3
+        plot(t, p_true(i,:))
 
+    end
+    grid on
+    legend("x","y","z")
+    ylabel("[m]")
+    xlabel("Time [s]")
+    title("True Navigation Position");
+
+    figure(5)
+    hold on
+    for i = 1:3
+        plot(t, v_true(i,:))
+
+    end
+    grid on
+    legend("x","y","z")
+    ylabel("[m/s]")
+    xlabel("Time [s]")
+    title("True Navigation Velocity");
+
+
+    figure(6)
+    hold on
+    for i = 1:3
+        plot(t, a_true(i,:))
+
+    end
+    grid on
+    legend("x","y","z")
+    ylabel("[m/s]")
+    xlabel("Time [s]")
+    title("True Navigation Acceleration");
 end
-grid on
-legend("x","y","z")
-ylabel("[m]")
-xlabel("Time [s]")
-title("True Navigation Position");
-
-figure
-hold on
-for i = 1:3
-    plot(t, v_true(i,:))
-
-end
-grid on
-legend("x","y","z")
-ylabel("[m/s]")
-xlabel("Time [s]")
-title("True Navigation Velocity");
-
-
-figure
-hold on
-for i = 1:3
-    plot(t, a_true(i,:))
-
-end
-grid on
-legend("x","y","z")
-ylabel("[m/s]")
-xlabel("Time [s]")
-title("True Navigation Acceleration");
-
 %% 
 % Zero acceleration, stay at the same position. Measure gravity in body frame
 
@@ -256,28 +260,26 @@ rot_comp = zeros(3*K,N);
 trans_comp = zeros(3,N);
 for n = 1:N
     W = skew_sym(w_b(:,n))^2 + skew_sym(w_dot_b(:,n));
-    trans_comp(:,n) = R_bn_true(:,:,n)*(a_true(:,n) - settings_default.g);
+    trans_comp(:,n) = R_bn_true(:,:,n)*(a_true(:,n) - settings_default.g);   % rotate body center accelerations 
+                                                                             % from inertial frame to body frame
     for k = 1:K
         kk = inds(:,k);
-        r_k = r_tot(:,k);
-        rot_comp(kk,n) = W*r_k;
-        u_true_acc(kk,n) = trans_comp(:,n) + rot_comp(kk,n);
+        r_k = r_tot(:,k);         % sensors position 
+        rot_comp(kk,n) = W*r_k;   % rotational acceleration component
+        u_true_acc(kk,n) = trans_comp(:,n) + rot_comp(kk,n);  % total acceleration measured in body frame
     end
 end
 
 % Gyroscopes measure angular velocity in body coordinates
 u_true_gyro = w_b;
 %%
-
-rng("default");
-
-
+rng("default");  % set random number generator type
 
 b_g_true = sig_b_g_init*randn(3,1)/sqrt(K);
-b_a_true = sig_b_a_init*randn(3*K,1);
+b_a_true = sig_b_a_init*randn(3*K,1);            
 
 A = compute_A_non_center(r_tot);
-b_omega_dot_true = -A(1:3,:)*b_a_true;
+b_omega_dot_true = -A(1:3,:)*b_a_true;    % adding measurement bias to all omega_dot values
 b_s_true = -A(4:6,:)*b_a_true;
 
 S_true = struct;
@@ -287,10 +289,10 @@ S_true.p = p_true;
 S_true.v = v_true;
 S_true.omega_dot = w_dot_b;
 
-S_true.b_omega_dot = repmat(b_omega_dot_true,1,N);
+S_true.b_omega_dot = repmat(b_omega_dot_true,1,N);  % omega_dot bias 
 S_true.b_s = repmat(b_s_true,1,N);
 S_true.b_g = repmat(b_g_true,1,N);
-S_true.s = trans_comp;
+S_true.s = trans_comp;                              % body linear acceleration in body frame
 
 Q_acc = eye(3*K)*sig_acc^2;
 Q_gyro = eye(3)*sig_gyro^2/K;
@@ -432,8 +434,8 @@ run_settings.save_input = true;
 run_settings.save_residuals = true;
 
 resSingle.label = "";
-[~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
 [~,resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
+[~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
 [~, resSingle.gyroscope_2nd_order] = run_filter(sensorData, init, simdata.gyroscope_2nd_order,run_settings, S_true);
 [~,resSingle.gyroscope_1st_order] = run_filter(sensorData, init, simdata.gyroscope_1st_order,run_settings, S_true);
 
