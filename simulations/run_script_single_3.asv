@@ -1,74 +1,77 @@
 %% Single Trajectory simulation 
 %% 
+function run_script_single_3
 % 
 % Simulations
 % Create noisy measurements and a complicated trajectory.
-clear all
 % close all
 
 showfigures=true;
 
-pathScript = fileparts(matlab.desktop.editor.getActiveFilename)
+pathScript = fileparts(matlab.desktop.editor.getActiveFilename);
 pathData = fullfile(pathScript,"data");
 mkdir(pathData);
-%%
-% save(fullfile(pathData,"workspace.mat"))
-%%
-% Run
-Fs = 500;
-% Fs = 100;
-Ts = 1/Fs;  % [s] Sampling period
-time_factor = 4.5;
-T_end = 10*time_factor;  % [s]
-t = 0:Ts:T_end - Ts;
-N = length(t);
+
+[meas, acc, gyro]=initData(); 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% initSamplingData
+function [meas, acc, gyro]=initSamplingData() 
+meas.Fs = 10000;
+meas.Ts = 1/meas.Fs;  % [s] Sampling period
+meas.time_factor=1;
+meas.T_end = 0.1;  % [s]
+meas.t = 0:meas.Ts:meas.T_end - meas.Ts;
+N = length(meas.t);
 
 F_pos = 100;
-assert(mod(Fs,F_pos) == 0)
-N_pos_update = Fs/F_pos;
+assert(mod(meas.Fs,F_pos) == 0)
+N_pos_update = meas.Fs/F_pos;
 inds_pos_update = 1:N_pos_update:N;
 
 % Low dynamics
 % N_periods = 1.5 % around 2000 deg/s in norm(w)
 % High dynamics
-N_periods = 10; % Around 1000 deg/s in norm(w)
 
 time_point_release = 40;
 
-sig_cont_gyro_deg = 1/sqrt(500); % Gyro continous noise 
-sig_cont_gyro = deg2rad(sig_cont_gyro_deg); 
-sig_cont_acc = 0.5/sqrt(500);     % Acc continous noise 
+gyroNoiseSigContDeg = 1/sqrt(500); % Gyro continous noise 
+accNoiseSigCont = 0.5/sqrt(500);     % Acc continous noise 
 
-sig_acc = sqrt(Fs)*sig_cont_acc;     % Discrete Acc noise
-sig_gyro = sqrt(Fs)*sig_cont_gyro;   % Discrete gyro noise
-rad2deg(sig_gyro)
+gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg); 
+
+acc.noiseSigDisc = sqrt(meas.Fs)*accNoiseSigCont;     % Discrete Acc noise
+gyro.noiseSigDisc = sqrt(meas.Fs)*gyroNoiseSigCont;   % Discrete gyro noise
+rad2deg(gyro.noiseSigDisc);
 
 sig_pos = 1e-1;        % Sigma position update
 
 % estimate a constant bias
-sig_b_a = 0;
-sig_b_g = 0;
-sig_b_a_init = 0.2;          % accelerometer bias value, From  Carlsson2021
-sig_b_g_init = deg2rad(1);   % gyro bias value, From  Carlsson2021
+acc.biasSig = 0;
+gyro.biasSig = 0;
+acc.biasSigInit = 0.2;          % accelerometer bias value, From  Carlsson2021
+gyro.biasSigInit = deg2rad(1);   % gyro bias value, From  Carlsson2021
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% initTrajectoryData
+function [inp]=initTrajectoryData(meas)
 % phi in [0, pi]
 inp.phi = "sinus";
 params = struct;
-params.A = pi/2;
-params.b = pi/2;
-params.f = (2 + N_periods)/T_end*time_factor; % Three periods
+params.A = 5;
+params.b = 1;
+params.f = 10/6.;% Three periods
 inp.phi_params = params;
 
 % theta in [0, 2pi]
 inp.theta = "sinus";
 params = struct;
-params.A = pi;
-params.b = pi;
-params.f = (N_periods)/T_end*time_factor; % two periods
+params.A = 10;
+params.b = 1;
+params.f = 10/6.; % two periods
 inp.theta_params = params;
 
-m = get_spherical_motion(t, inp);   % calculate phi,theta, phi_dot, theta_dot history
+m = get_spherical_motion(meas.t, inp);   % calculate phi,theta, phi_dot, theta_dot history
 
 vels = compute_omega(m); % calculation of omega and omega_dot in navigation and body frames
 
@@ -79,12 +82,12 @@ vels = compute_omega(m); % calculation of omega and omega_dot in navigation and 
 if showfigures
     figure(1);
     vels = mergeStruct(m, vels);
-    plot_angular_velocities(t, vels)
+    plot_angular_velocities(meas.t, vels)
     scale_figure(gcf, 1.5);
-    figure
+    figure(2)
     hold on
-    plot(t, rad2deg(norm_time(vels.w_b)), "b-")
-    plot(t, rad2deg(norm_time(vels.w_n)), "r--")
+    plot(meas.t, rad2deg(norm_time(vels.w_b)), "b-")
+    plot(meas.t, rad2deg(norm_time(vels.w_n)), "r--")
 end
 %%
 
@@ -110,63 +113,35 @@ end
 %%
 
 if showfigures    
-    figure(2);
+    figure(3);
     eul = my_rotm2eul(R_nb_true);
-    plot(t,rad2deg(eul'))
+    plot(meas.t,rad2deg(eul'))
     legend("roll", "pitch", "yaw")
     grid on
 end
 
 %% sensor positions in body frame
-pos_b = [-0.0095    0.0032    0.0010
-   -0.0095    0.0032   -0.0010
-   -0.0095    0.0095    0.0010
-   -0.0095    0.0095   -0.0010
-   -0.0095   -0.0095    0.0010
-   -0.0095   -0.0095   -0.0010
-   -0.0095   -0.0032    0.0010
-   -0.0095   -0.0032   -0.0010
-   -0.0032    0.0032    0.0010
-   -0.0032    0.0032   -0.0010
-   -0.0032    0.0095    0.0010
-   -0.0032    0.0095   -0.0010
-   -0.0032   -0.0095    0.0010
-   -0.0032   -0.0095   -0.0010
-   -0.0032   -0.0032    0.0010
-   -0.0032   -0.0032   -0.0010
-    0.0032    0.0032    0.0010
-    0.0032    0.0032   -0.0010
-    0.0032    0.0095    0.0010
-    0.0032    0.0095   -0.0010
-    0.0032   -0.0095    0.0010
-    0.0032   -0.0095   -0.0010
-    0.0032   -0.0032    0.0010
-    0.0032   -0.0032   -0.0010
-    0.0095    0.0032    0.0010
-    0.0095    0.0032   -0.0010
-    0.0095    0.0095    0.0010
-    0.0095    0.0095   -0.0010
-    0.0095   -0.0095    0.0010
-    0.0095   -0.0095   -0.0010
-    0.0095   -0.0032    0.0010
-    0.0095   -0.0032   -0.0010]';
+pos_b = [
+   0    0    0
+   0    0.1  0
+   1    0    0]';
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
-i_IMU_select = 1:32;
+i_IMU_select = 1:3;
 pos_b = pos_b(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
 r_tot = pos_b - mean(pos_b,2);   % Centroid of sensor positions
 
 %%
 if showfigures
-    figure(3);
+    figure(4);
     subplot(1,2,1)
     plot(r_tot(1,1:2:end)*1e3,r_tot(2,1:2:end)*1e3,"x")
     axis("equal")
     grid on
     L = 15;
-    xlim([-L,L])
-    ylim([-L,L])
+    % xlim([-L,L])
+    % ylim([-L,L])
     % xlim([-5,5]*1e-3)
     xlabel("[mm]")
     ylabel("[mm]")
@@ -175,8 +150,8 @@ if showfigures
     plot(r_tot(1,2:2:end)*1e3,r_tot(2,2:2:end)*1e3,"x")
     grid on
     axis("equal")
-    xlim([-L,L])
-    ylim([-L,L])
+    % xlim([-L,L])
+    % ylim([-L,L])
     xlabel("[mm]")
     ylabel("[mm]")
     title("underside")
@@ -190,7 +165,7 @@ settings_default = struct;
 settings_default.save_full_covariances = false;
 settings_default.save_jacobians = false;
 settings_default.verbose = true;
-settings_default.T = Ts;                            % Sampling period
+settings_default.T = meas.Ts;                            % Sampling period
 settings_default.g = [0; 0; -9.81];
 
 
@@ -199,7 +174,7 @@ settings_default.r = r_tot;
 
 %% Generate the motion 
 
-f_pos = [1 2 3 ]/T_end*2*pi*time_factor; % frequency for each axis
+f_pos = [1.3 1.4 1.5]/meas.T_end*meas.time_factor; % frequency for each axis
 
 
 p_true = zeros(3,N);
@@ -208,29 +183,39 @@ a_true = zeros(3,N);
 
 for i = 1:3
     f_i = f_pos(i);
-    p_true(i,:) = sin(f_i*t);
-    v_true(i,:) = f_i*cos(f_i*t);
-    a_true(i,:) = -f_i^2*sin(f_i*t);
+    p_true(i,:) = sin(f_i*meas.t);
+    v_true(i,:) = f_i*cos(f_i*meas.t);
+    a_true(i,:) = -f_i^2*sin(f_i*meas.t);
 end
 %%
 
 if showfigures
-    figure(4);
+    figure(5);
+    subplot(2,1,1)
     hold on
     for i = 1:3
-        plot(t, p_true(i,:))
+        plot(meas.t, p_true(i,:))
 
     end
+
     grid on
     legend("x","y","z")
     ylabel("[m]")
     xlabel("Time [s]")
     title("True Navigation Position");
+    subplot(2,1,2)
+    plot3(p_true(1,:),p_true(2,:),p_true(3,:))
+    grid on
+    xlabel("x[m]")
+    ylabel("y[m]")
+    zlabel("z[m]")
+    axis equal
+    
 
-    figure(5)
+    figure(6)
     hold on
     for i = 1:3
-        plot(t, v_true(i,:))
+        plot(meas.t, v_true(i,:))
 
     end
     grid on
@@ -240,10 +225,10 @@ if showfigures
     title("True Navigation Velocity");
 
 
-    figure(6)
+    figure(7)
     hold on
     for i = 1:3
-        plot(t, a_true(i,:))
+        plot(meas.t, a_true(i,:))
 
     end
     grid on
@@ -251,6 +236,7 @@ if showfigures
     ylabel("[m/s]")
     xlabel("Time [s]")
     title("True Navigation Acceleration");
+    
 end
 %% 
 % Zero acceleration, stay at the same position. Measure gravity in body frame
@@ -275,8 +261,8 @@ u_true_gyro = w_b;
 %%
 rng("default");  % set random number generator type
 
-b_g_true = sig_b_g_init*randn(3,1)/sqrt(K);
-b_a_true = sig_b_a_init*randn(3*K,1);            
+b_g_true = gyro.biasSigInit*randn(3,1)/sqrt(K);
+b_a_true = acc.biasSigInit*randn(3*K,1);            
 
 A = compute_A_non_center(r_tot);
 b_omega_dot_true = -A(1:3,:)*b_a_true;    % adding measurement bias to all omega_dot values
@@ -294,8 +280,8 @@ S_true.b_s = repmat(b_s_true,1,N);
 S_true.b_g = repmat(b_g_true,1,N);
 S_true.s = trans_comp;                              % body linear acceleration in body frame
 
-Q_acc = eye(3*K)*sig_acc^2;
-Q_gyro = eye(3)*sig_gyro^2/K;
+Q_acc = eye(3*K)*acc.noiseSigDisc^2;
+Q_gyro = eye(3)*gyro.noiseSigDisc^2/K;
 Q_pos = eye(3)*sig_pos^2;
 
 noise_acc = chol(Q_acc)*randn(3*K,N);
@@ -305,7 +291,7 @@ noise_pos = nan(3,N);
 noise_pos(:,inds_pos_update) = chol(Q_pos)*randn(3, length(inds_pos_update));
 
 % Release at 15 secs
-noise_pos(:,t > time_point_release) = nan;
+noise_pos(:,meas.t > time_point_release) = nan;
 
 
 %%
@@ -326,10 +312,10 @@ init.mean.v = v_true(:,1) + chol(init.cov.v)*randn(3,1);
 init.mean.omega = u_true_gyro(:,1) + noise_gyro(:,1);
 
 init.mean.b_a = zeros(3*K,1);
-init.cov.b_a = sig_b_a_init^2*eye(3*K)*3;
+init.cov.b_a = acc.biasSigInit^2*eye(3*K)*3;
 
 init.mean.b_g = zeros(3,1);
-init.cov.b_g = eye(3)*sig_b_g_init^2/K*3;
+init.cov.b_g = eye(3)*gyro.biasSigInit^2/K*3;
 
 
 %% Run Filters
@@ -347,11 +333,11 @@ simdata.accelerometer_array_2nd_order.propagate_bias_gyro = true;
 simdata.accelerometer_array_2nd_order.set_T2_R_zero = false;
 simdata.accelerometer_array_2nd_order.get_model = @D_LG_EKF_Array_v4_alpha;
 simdata.accelerometer_array_2nd_order.r = r_tot;
-simdata.accelerometer_array_2nd_order.Q_acc = sig_acc^2*eye(3*K);
-simdata.accelerometer_array_2nd_order.Q_bias_acc = sig_b_a^2*eye(3*K);
+simdata.accelerometer_array_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.accelerometer_array_2nd_order.Q_bias_acc = acc.biasSig^2*eye(3*K);
 simdata.accelerometer_array_2nd_order.R_pos = sig_pos^2*eye(3);
-simdata.accelerometer_array_2nd_order.R_gyro = sig_gyro^2*eye(3)/K;
-simdata.accelerometer_array_2nd_order.Q_bias_gyro = sig_b_g^2*eye(3)/K;
+simdata.accelerometer_array_2nd_order.R_gyro = gyro.noiseSigDisc^2*eye(3)/K;
+simdata.accelerometer_array_2nd_order.Q_bias_gyro = gyro.biasSig^2*eye(3)/K;
 simdata.accelerometer_array_2nd_order.do_gyro_updates = true;
 simdata.accelerometer_array_2nd_order.do_position_updates = true;
 simdata.accelerometer_array_2nd_order.do_rotation_updates = false;
@@ -366,11 +352,11 @@ simdata.accelerometer_array_1st_order.propagate_bias_gyro = true;
 simdata.accelerometer_array_1st_order.set_T2_R_zero = true;
 simdata.accelerometer_array_1st_order.get_model = @D_LG_EKF_Array_v4_alpha;
 simdata.accelerometer_array_1st_order.r = r_tot;
-simdata.accelerometer_array_1st_order.Q_acc = sig_acc^2*eye(3*K);
-simdata.accelerometer_array_1st_order.Q_bias_acc = sig_b_a^2*eye(3*K);
+simdata.accelerometer_array_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.accelerometer_array_1st_order.Q_bias_acc = acc.biasSig^2*eye(3*K);
 simdata.accelerometer_array_1st_order.R_pos = sig_pos^2*eye(3);
-simdata.accelerometer_array_1st_order.R_gyro = sig_gyro^2*eye(3);
-simdata.accelerometer_array_1st_order.Q_bias_gyro = sig_b_g^2*eye(3)/K;
+simdata.accelerometer_array_1st_order.R_gyro = gyro.noiseSigDisc^2*eye(3);
+simdata.accelerometer_array_1st_order.Q_bias_gyro = gyro.biasSig^2*eye(3)/K;
 simdata.accelerometer_array_1st_order.do_gyro_updates = true;
 simdata.accelerometer_array_1st_order.do_position_updates = true;
 simdata.accelerometer_array_1st_order.do_rotation_updates = false;
@@ -385,11 +371,11 @@ simdata.gyroscope_2nd_order.propagate_bias_s = true;
 simdata.gyroscope_2nd_order.set_T2_R_zero = false;
 simdata.gyroscope_2nd_order.get_model = @D_LG_EKF_Gyro_2nd_v4;
 simdata.gyroscope_2nd_order.r = r_tot;
-simdata.gyroscope_2nd_order.Q_acc = sig_acc^2*eye(3*K);
-simdata.gyroscope_2nd_order.Q_bias_acc = sig_b_a^2*eye(3*K);
+simdata.gyroscope_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.gyroscope_2nd_order.Q_bias_acc = acc.biasSig^2*eye(3*K);
 simdata.gyroscope_2nd_order.R_pos = sig_pos^2*eye(3);
-simdata.gyroscope_2nd_order.Q_gyro = sig_gyro^2*eye(3)/K;
-simdata.gyroscope_2nd_order.Q_bias_gyro = sig_b_g^2*eye(3)/K;
+simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
+simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.biasSig^2*eye(3)/K;
 simdata.gyroscope_2nd_order.do_gyro_updates = false;
 simdata.gyroscope_2nd_order.do_position_updates = true;
 simdata.gyroscope_2nd_order.do_rotation_updates = false;
@@ -403,11 +389,11 @@ simdata.gyroscope_1st_order.propagate_position = true;
 simdata.gyroscope_1st_order.propagate_velocity = true;
 simdata.gyroscope_1st_order.get_model = @D_LG_EKF_Gyro_1st_v4;
 simdata.gyroscope_1st_order.N_a = K;
-simdata.gyroscope_1st_order.Q_acc = sig_acc^2*eye(3*K);
-simdata.gyroscope_1st_order.Q_bias_acc = sig_b_a^2*eye(3*K);
+simdata.gyroscope_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.gyroscope_1st_order.Q_bias_acc = acc.biasSig^2*eye(3*K);
 simdata.gyroscope_1st_order.R_pos = sig_pos^2*eye(3);
-simdata.gyroscope_1st_order.Q_gyro = sig_gyro^2*eye(3)/K;
-simdata.gyroscope_1st_order.Q_bias_gyro = sig_b_g^2*eye(3)/K;
+simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
+simdata.gyroscope_1st_order.Q_bias_gyro = gyro.biasSig^2*eye(3)/K;
 simdata.gyroscope_1st_order.do_gyro_updates = false;
 simdata.gyroscope_1st_order.do_position_updates = true;
 simdata.gyroscope_1st_order.do_rotation_updates = false;
@@ -486,7 +472,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "filt"];
-[fig,~] = plot_bias_s(resSingle, t, cases_plot, plotOpt_k, "normal", extras);
+[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -498,7 +484,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
-[fig,~] = plot_bias_s(resSingle, t, cases_plot, plotOpt_k, "error", extras);
+[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -511,7 +497,7 @@ plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
 extras.show_mean = false;
-[fig,~] = plot_bias_s(resSingle, t, cases_plot, plotOpt_k, "error_log", extras);
+[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -521,7 +507,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "filt"];
-[fig,~] = plot_bias_omega_dot(resSingle, t, cases_plot, plotOpt_k, "normal", extras);
+[fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -534,7 +520,7 @@ plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
 extras.show_mean = false;
-[fig,~] = plot_bias_omega_dot(resSingle, t, cases_plot, plotOpt_k, "error_log", extras);
+[fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
 scale_figure(fig,1.5);
 % Bias gyroscope
 
@@ -545,7 +531,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "filt"];
-[fig,~] = plot_bias_gyroscopes(resSingle, t, cases_plot, plotOpt_k, "normal", extras);
+[fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -556,7 +542,7 @@ plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
 extras.show_mean = false;
-[fig,~] = plot_bias_gyroscopes(resSingle, t, cases_plot, plotOpt_k, "error_log", extras);
+[fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -566,7 +552,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
-[fig,~] = plot_rotation(resSingle, t, cases_plot, plotOpt_k, "error", extras);
+[fig,~] = plot_rotation(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -577,7 +563,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "filt"];
-[fig,~] = plot_navigation_position(resSingle, t, cases_plot, plotOpt_k, "normal", extras);
+[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -588,7 +574,7 @@ cases_plot = [ "accelerometer_array_2nd_order";
 plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
-[fig,~] = plot_navigation_position(resSingle, t, cases_plot, plotOpt_k, "error", extras);
+[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
 scale_figure(fig,1.5);
 %%
 cases_plot = [ "accelerometer_array_2nd_order";
@@ -600,7 +586,7 @@ plotOpt_k = struct;
 extras = struct;
 extras.path = ["res", "err"];
 extras.show_mean = false;
-[fig,~] = plot_navigation_position(resSingle, t, cases_plot, plotOpt_k, "error_log", extras);
+[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
 scale_figure(fig,1.5);
 %%
 
