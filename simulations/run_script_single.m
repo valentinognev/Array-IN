@@ -6,9 +6,9 @@
 clear all
 % close all
 
-showfigures=true;
+showfigures=false;
 
-pathScript = fileparts(matlab.desktop.editor.getActiveFilename)
+pathScript = fileparts(matlab.desktop.editor.getActiveFilename);
 pathData = fullfile(pathScript,"data");
 mkdir(pathData);
 %%
