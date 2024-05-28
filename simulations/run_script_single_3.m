@@ -145,10 +145,11 @@ global showfigures;
 pos.body = [
    0    0    0
    0    0.1  0
-   1    0    0]';
+   1    0    0
+   0    0   0.1]';
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
-i_IMU_select = 1:3; % select specific IMUs from the list in case that not all IMU are used
+i_IMU_select = 1:4; % select specific IMUs from the list in case that not all IMU are used
 pos.body = pos.body(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
 pos.bodyCorr = pos.body - mean(pos.body,2);   % corrected by centroid of sensor positions
@@ -290,12 +291,12 @@ truth.gyro_u = w_b;
 %%
 rng("default");  % set random number generator type
 
-truth.gyro_bias = gyro.truthSig*randn(3,1)/sqrt(K);
-truth.acc_bias = acc.truthSig*randn(3*K,1);            
+truth.bodyGyro = gyro.truthSig*randn(3,1)/sqrt(K);
+truth.bodyAcc = acc.truthSig*randn(3*K,1);            
 
-A = compute_A_non_center(pos.bodyCorr);
-b_omega_dot_true = -A(1:3,:)*truth.acc_bias;    % adding measurement bias to all omega_dot values
-b_s_true = -A(4:6,:)*truth.acc_bias;
+A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
+b_omega_dot_true = -A(1:3,:)*truth.bodyAcc;    % adding measurement bias to all omega_dot values
+b_s_true = -A(4:6,:)*truth.bodyAcc;
 
 S_true = struct;
 S_true.R = truth.R_nb;
@@ -306,7 +307,7 @@ S_true.omega_dot = w_dot_b;
 
 S_true.b_omega_dot = repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias 
 S_true.b_s = repmat(b_s_true,1,meas.N);
-S_true.b_g = repmat(truth.gyro_bias,1,meas.N);
+S_true.b_g = repmat(truth.bodyGyro,1,meas.N);
 S_true.s = trans_comp;                              % body linear acceleration in body frame
 
 acc.Q = eye(3*K)*acc.noiseSigDisc^2;
@@ -427,8 +428,8 @@ simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
 sensorData = struct;
-sensorData.acc_measurements = truth.acc_u + truth.acc_bias + acc.noise;
-sensorData.gyro_measurements = truth.gyro_u + truth.gyro_bias + gyro.noise;
+sensorData.acc_measurements = truth.acc_u + truth.bodyAcc + acc.noise;
+sensorData.gyro_measurements = truth.gyro_u + truth.bodyGyro + gyro.noise;
 sensorData.position_measurements = truth.pos + pos.noise;
 
 % Run filters 

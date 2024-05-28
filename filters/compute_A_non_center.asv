@@ -1,6 +1,5 @@
 function [A] = compute_A_non_center(sensorPos, T)
 %COMPUTE_AS The matrix for the rotation 
-% Based on: Appendix A of "Inertial Navigation using an Inertial sensor array"
 %
 % As = compute_As(sensorPos)
 % Where sensorPos is centered - position relative to centroid.
@@ -17,7 +16,7 @@ if nargin == 2
     H = matrix3d2blkdiag(T)*H;
 end
 
-A = (H'*H)\H';  % 5b - Inertial Navigation using an Inertial sensor array
+A = (H'*H)\H';
 
 
 
