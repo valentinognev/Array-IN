@@ -149,7 +149,7 @@ pos.body = [
    0    0   0.1]';
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
-i_IMU_select = 1:3; % select specific IMUs from the list in case that not all IMU are used
+i_IMU_select = 1:4; % select specific IMUs from the list in case that not all IMU are used
 pos.body = pos.body(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
 pos.bodyCorr = pos.body - mean(pos.body,2);   % corrected by centroid of sensor positions
@@ -294,7 +294,7 @@ rng("default");  % set random number generator type
 truth.bodyGyro = gyro.truthSig*randn(3,1)/sqrt(K);
 truth.bodyAcc = acc.truthSig*randn(3*K,1);            
 
-A = compute_A_non_center(pos.bodyCorr);
+A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
 b_omega_dot_true = -A(1:3,:)*truth.bodyAcc;    % adding measurement bias to all omega_dot values
 b_s_true = -A(4:6,:)*truth.bodyAcc;
 
@@ -494,27 +494,28 @@ cases_plot = [ "accelerometer_array_2nd_order";
      "gyroscope_1st_order";
 "True"];
 
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "filt"];
-[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order"];
-
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order"];
+if plotBias
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "filt"];
+    [fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    [fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+end
 
 plotOpt_k = struct;
 extras = struct;

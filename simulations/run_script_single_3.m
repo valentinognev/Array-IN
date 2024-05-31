@@ -47,7 +47,7 @@ pos.inds_update = 1:pos.N_update:meas.N;
 meas.time_point_release = 40;
 
 gyroNoiseSigContDeg = 1/sqrt(500); % Gyro continous noise 
-accNoiseSigCont = 0.5/sqrt(500);     % Acc continous noise 
+accNoiseSigCont = 100/sqrt(500);     % Acc continous noise 
 
 gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg); 
 
@@ -467,6 +467,11 @@ resSingle.True.res = true_traj;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% plotResults
 function plotResults(meas, resSingle)
+
+plotBias = 0;
+plotRotation = 0;
+plotPosition = 1;
+
 cases_plot = ["mean_array", "mean_array_omega_dot", "array_1st", "array_2nd","True"];
 
 plotOpt = struct;
@@ -488,128 +493,132 @@ plotOpt.array_2nd.cov.m_space = 1000;
 plotOpt.array_2nd.cov.m_offset = 300;
 
 % Bias specific force
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order";
-"True"];
+if plotBias
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order";
+        "True"];
 
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "filt"];
-[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
-scale_figure(fig,1.5);
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "filt"];
+    [fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    [fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    extras.show_mean = false;
+    [fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order"; "True"];
+
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "filt"];
+    [fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    extras.show_mean = false;
+    [fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
+    scale_figure(fig,1.5);
+
+    % Bias gyroscope
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"; "True"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "filt"];
+    [fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    extras.show_mean = false;
+    [fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
+    scale_figure(fig,1.5);
+end
 %
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order"];
-
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
-scale_figure(fig,1.5);
+if plotRotation
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    [fig,~] = plot_rotation(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
+    scale_figure(fig,1.5);
+end
 %
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order"];
+if plotPosition
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order"; "True"];
 
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-extras.show_mean = false;
-[fig,~] = plot_bias_s(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order"; "True"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "filt"];
+    [fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order";];
 
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "filt"];
-[fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-     "accelerometer_array_1st_order";
-     "gyroscope_2nd_order";
-     "gyroscope_1st_order"];
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    [fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
+    scale_figure(fig,1.5);
+    %
+    cases_plot = [ "accelerometer_array_2nd_order";
+        "accelerometer_array_1st_order";
+        "gyroscope_2nd_order";
+        "gyroscope_1st_order";];
 
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-extras.show_mean = false;
-[fig,~] = plot_bias_omega_dot(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
-scale_figure(fig,1.5);
-
-% Bias gyroscope
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order"; "True"];
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "filt"];
-[fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order"];
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-extras.show_mean = false;
-[fig,~] = plot_bias_gyroscopes(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order"];
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-[fig,~] = plot_rotation(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order"; "True"];
-
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "filt"];
-[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "normal", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order";];
-
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error", extras);
-scale_figure(fig,1.5);
-%
-cases_plot = [ "accelerometer_array_2nd_order";
-    "accelerometer_array_1st_order";
-   "gyroscope_2nd_order";
-  "gyroscope_1st_order";];
-
-plotOpt_k = struct;
-extras = struct;
-extras.path = ["res", "err"];
-extras.show_mean = false;
-[fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
-scale_figure(fig,1.5);
-
+    plotOpt_k = struct;
+    extras = struct;
+    extras.path = ["res", "err"];
+    extras.show_mean = false;
+    [fig,~] = plot_navigation_position(resSingle, meas.t, cases_plot, plotOpt_k, "error_log", extras);
+    scale_figure(fig,1.5);
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 %% run_filter
 function [c, misc] = run_filter(sensorData, init, simdata, run_settings, S_ref, x, f_change, mask_logLL)
