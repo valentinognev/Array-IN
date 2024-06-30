@@ -34,6 +34,8 @@ meas.time_factor=1;
 meas.T_end = 0.1;  % [s]
 meas.t = 0:meas.Ts:meas.T_end - meas.Ts;
 meas.N = length(meas.t);
+meas.noiseFactor=1e-4;
+meas.biasFactor=0;
 
 F_pos = 1000;  % [Hz] Time frequency of position update in simulation 
 assert(mod(meas.Fs,F_pos) == 0)
@@ -46,8 +48,8 @@ pos.inds_update = 1:pos.N_update:meas.N;
 
 meas.time_point_release = 40;
 
-gyroNoiseSigContDeg = 1/sqrt(500); % Gyro continous noise 
-accNoiseSigCont = 100/sqrt(500);     % Acc continous noise 
+gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500); % Gyro continous noise 
+accNoiseSigCont = meas.noiseFactor*100/sqrt(500);     % Acc continous noise 
 
 gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg); 
 
@@ -58,10 +60,10 @@ rad2deg(gyro.noiseSigDisc);
 pos.sig = 1e-1;        % Sigma position update
 
 % estimate a constant bias
-acc.Qsig = 0;
-gyro.Qsig = 0;
-acc.truthSig = 0.2;          % accelerometer bias value, From  Carlsson2021
-gyro.truthSig = deg2rad(1);   % gyro bias value, From  Carlsson2021
+acc.Qsig = meas.biasFactor*0;                                % accelerometer bias value, From  Carlsson2021
+gyro.Qsig = meas.biasFactor*0;                               % gyro bias value, From  Carlsson2021
+acc.truthSig = meas.noiseFactor*0.2;
+gyro.truthSig = meas.noiseFactor*deg2rad(1);   
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% genBodyFrameAngleTrajectory
@@ -280,23 +282,22 @@ for n = 1:meas.N
                                                                                % from inertial frame to body frame
     for k = 1:K
         kk = inds(:,k);
-        r_k = pos.bodyCorr(:,k);         % sensors position 
-        rot_comp(kk,n) = W*r_k;   % rotational acceleration component
-        truth.acc_u(kk,n) = trans_comp(:,n) + rot_comp(kk,n);  % total acceleration measured in body frame
+        r_k = pos.bodyCorr(:,k);                               % sensors position 
+        rot_comp(kk,n) = W*r_k;                                % rotational acceleration component
+        truth.acc_u(kk,n) = trans_comp(:,n) + rot_comp(kk,n);  % total acceleration in body frame
     end
 end
 
-% Gyroscopes measure angular velocity in body coordinates
-truth.gyro_u = w_b;
+truth.gyro_u = w_b;                                            % Angular velocity in body coordinates
 %%
 rng("default");  % set random number generator type
 
-truth.bodyGyro = gyro.truthSig*randn(3,1)/sqrt(K);
-truth.bodyAcc = acc.truthSig*randn(3*K,1);            
+truth.biasGyro = gyro.truthSig*randn(3,1)/sqrt(K);
+truth.biasAcc = acc.truthSig*randn(3*K,1);            
 
 A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
-b_omega_dot_true = -A(1:3,:)*truth.bodyAcc;    % adding measurement bias to all omega_dot values
-b_s_true = -A(4:6,:)*truth.bodyAcc;
+b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
+b_s_true = -A(4:6,:)*truth.biasAcc;
 
 S_true = struct;
 S_true.R = truth.R_nb;
@@ -306,8 +307,8 @@ S_true.v = truth.v;
 S_true.omega_dot = w_dot_b;
 
 S_true.b_omega_dot = repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias 
-S_true.b_s = repmat(b_s_true,1,meas.N);
-S_true.b_g = repmat(truth.bodyGyro,1,meas.N);
+S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias 
+S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias 
 S_true.s = trans_comp;                              % body linear acceleration in body frame
 
 acc.Q = eye(3*K)*acc.noiseSigDisc^2;
@@ -428,8 +429,8 @@ simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
 sensorData = struct;
-sensorData.acc_measurements = truth.acc_u + truth.bodyAcc + acc.noise;
-sensorData.gyro_measurements = truth.gyro_u + truth.bodyGyro + gyro.noise;
+sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
+sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
 sensorData.position_measurements = truth.pos + pos.noise;
 
 % Run filters 

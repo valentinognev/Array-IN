@@ -23,7 +23,7 @@
     
     % -------------------------------------------------------------------------
     % These must exists
-    u_prop = model.get_input(sensorData);
+    u_prop = model.get_input(sensorData);  % acceleration measurements history data in body frame
     Q_prop = model.get_Q();
     Nt =  size(u_prop,2);
 
@@ -234,14 +234,26 @@
     
     w = zeros(Nw, 1); % Just set to zero
     for n = 2:Nt
+% State vector 
+% R;          % Rotation between body frame and navigation frame
+% x(1:3);     % angular velocity in body frame
+% x(4:6);     % position in navigation frame
+% x(7:9);     % velocity in navigation frame
+% Covariance matrix
+% P(1:3)        % Rotation 
+% P(4:6);       % angular velocity in body frame
+% P(7:9);       % position in navigation frame
+% P(10:12);     % velocity in navigation frame
         if isfield(settings, 'progress')
             settings.progress(n,Nt)
         end
         % Propagation
         % get n-1 values. 
-        u_n = u_prop(:,n-1); 
+        u_n = u_prop(:,n-1);   % acceleration measurements data in body frame
+        if n==(Nt-10)
+            disp ''
+        end
                 
-        
         resProp = model.propagate(R_maj, x_maj, u_n, w);
         Omega_n = resProp.Omega;
         dOmega_de_n = resProp.dOmega_de;
@@ -262,15 +274,16 @@
         if isfield(resProp,"s")
             s(:,n-1) = resProp.s;
         end
-
+        %%% Equation test
+        resProp.s+cross(Omega_n(1:3),cross(Omega_n(1:3),settings.r(:,1)))+cross(resProp.omega_dot,settings.r(:,1))-resProp.v_dot;
         
         % Mean propagation
         % n|n-1
-        R_prop = R_maj*expSO3(Omega_n(1:3)); % SO(3)
-        x_prop = x_maj + Omega_n(4:end); %Euclidean
+        R_prop = R_maj*expSO3(Omega_n(1:3)); % SO(3)  
+        x_prop = x_maj + Omega_n(4:end); % Euclidean
         
         % Covariance propagation
-        Ad = eye(size(P_maj)); % adjoint
+        Ad = eye(size(P_maj));           % adjoint
         Ad(1:3,1:3) = AdSO3(expSO3(-Omega_n(1:3)));
         Phi_n = eye(size(P_maj));
         Phi_n(1:3,1:3) = PhiSO3(-Omega_n(1:3));

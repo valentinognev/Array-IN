@@ -5,15 +5,22 @@ classdef D_LG_EKF_Array_v4_alpha
     properties
         T                       % Sampling time 
         g                       % gravity in navigation frame
+        % Equation (35) Inertial navigationusing an Inertial sensor array
         inds_R = 1:3            % Rotation matrix R_nb, from body to navigation frame
         inds_omega = 4:6        % Angular velocity in body frame
         inds_p = []             % Position in navigation frame
         inds_v = []             % Velocity in navigation frame        
-        inds_b_alpha = []       % Bias in alpha
+        inds_b_alpha = []       % Bias in alpha (omega_dot)
+        % inds_b_s = []         % (Not in use, see Eqn (25)) Bias in specific force
         inds_b_g = []           % Bias in gyroscope 
-        inds_w_alpha = []       % alpha white noise
+
+        % Equation (36) Inertial navigationusing an Inertial sensor array
+        inds_w_alpha = []       % alpha (omega_dot) white noise (that drives the bias terms for the accelerometers and gyroscopes)
+        % inds_w_s = []         % (Not in use, see Eqn (25)) specific force white noise
         inds_w_b_alpha = []     % Process noise bias alpha
+        %inds_w_b_s = []        % Process noise bias specific force        
         inds_w_b_g = []         % Process noise bias gyroscope
+
         Nx
         Nw
         N_a
@@ -51,7 +58,7 @@ classdef D_LG_EKF_Array_v4_alpha
 
             % R, omega, defeault
             Nx = 6;                       
-            obj.inds_w_alpha = 1:6;
+            obj.inds_w_alpha = 1:6;  % process noise indexes
             Nw = 6;            
             
             if isfield(settings,"propagate_position") && settings.propagate_position
@@ -149,6 +156,17 @@ classdef D_LG_EKF_Array_v4_alpha
             Q = obj.Q;         
         end
         function res = propagate(obj, R, x, y, w)
+            % R - Rnb - Lie group rotation matrix - Rotation between body frame to navigation frame
+            % x - position
+            %     x(1:3);     % angular velocity in body frame
+            %     x(4:6);     % position in navigation frame
+            %     x(7:9);     % velocity in navigation frame
+            %     x(10:12)    % bias in angular acceleration measurement
+            %     x(13:15)    % bias in linear acceleration measurement
+            %     x(16:18)    % bias in gyro measurement
+
+            % y - sensor acceleration data in body frame
+
             %METHOD1 Summary of this method goes here
             %   Detailed explanation goes here
                             
@@ -162,8 +180,8 @@ classdef D_LG_EKF_Array_v4_alpha
                 v = x(obj.inds_v-3);             % velocity
             end
             
-            if ~isempty(obj.inds_b_alpha)
-                b_alpha = x(obj.inds_b_alpha - 3);   
+            if ~isempty(obj.inds_b_alpha)            % alpha is omega dot
+                b_alpha = x(obj.inds_b_alpha - 3);   % bias of angular acceleration
             elseif ~isempty(obj.constant_b_alpha)
                 b_alpha = obj.constant_b_alpha;
             else
@@ -171,7 +189,7 @@ classdef D_LG_EKF_Array_v4_alpha
             end
             
             % Process noise
-            w_alpha = w(obj.inds_w_alpha);     % alpha
+            w_alpha = w(obj.inds_w_alpha);     
             
             if ~isempty(obj.inds_w_b_alpha)
                 w_b_alpha = w(obj.inds_w_b_alpha);   
@@ -191,11 +209,11 @@ classdef D_LG_EKF_Array_v4_alpha
             
             alpha = obj.A*(y_a - h) + b_alpha + w_alpha;
  
-            omega_dot = alpha(1:3); % Angular acceleration            
-            s = alpha(4:6);         % Specific force 
+            omega_dot = alpha(1:3); % Angular acceleration in body coordinates           
+            s = alpha(4:6);         % Specific force (acceleration) in body coordinates       
 
             % Navigation acceleration
-            v_dot = obj.g + R*s;
+            v_dot = obj.g + R*s;    % Acceleration in navigation coordinates 
   
             Omega = zeros(obj.Nx,1);
             % R
