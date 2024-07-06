@@ -154,11 +154,17 @@ pos.body = [0.1444, 0, 0.0252;
     0.0252, 0.1444, 0;
     0,-0.1444, 0.0252;
     0, 0.0252, 0.1444;
-    0.0252, 0,-0.1444]';
+    0.0252, 0,-0.1444];
+
+
+    0    0    0
+    0    0.1  0
+    1    0    0
+    0    0   0.1]';
 
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
-i_IMU_select = 1:6; % select specific IMUs from the list in case that not all IMU are used
+i_IMU_select = 1:4; % select specific IMUs from the list in case that not all IMU are used
 pos.body = pos.body(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
 pos.bodyCorr = pos.body - mean(pos.body,2);   % corrected by centroid of sensor positions
