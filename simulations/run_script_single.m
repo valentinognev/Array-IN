@@ -5,7 +5,7 @@
 % Create noisy measurements and a complicated trajectory.
 clear all
 % close all
-
+ 
 showfigures=false;
 
 pathScript = fileparts(matlab.desktop.editor.getActiveFilename);

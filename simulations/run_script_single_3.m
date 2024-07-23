@@ -21,25 +21,25 @@ mkdir(pathData);
 [settings_default, inds]=getGeneralSettings(meas, pos);
 [truth] = generateMotionTrajectory(meas, truth);          % generation spatial motion
 [S_true, acc, gyro, pos, truth] = addNoiseAndBias(meas, pos, settings_default, gyro, acc, w_b, w_dot_b, truth, inds);
-[init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default, meas);
+[init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default);
 [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b);
 plotResults(meas, resSingle);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% initSamplingData
 function [meas, acc, gyro, pos]=initSamplingData() 
-meas.Fs = 10000;
-meas.Ts = 1/meas.Fs;  % [s] Sampling period
+meas.Fs = 10000;                  % [Hz] Sampling frequency
+meas.Ts = 1/meas.Fs;              % [s] Sampling period
 meas.time_factor=1;
-meas.T_end = 0.1;  % [s]
+meas.T_end = 0.1;                 % [s] End time of simulations
 meas.t = 0:meas.Ts:meas.T_end - meas.Ts;
 meas.N = length(meas.t);
-meas.noiseFactor=1e-4;
-meas.biasFactor=0;
+meas.noiseFactor=1; %1e-4;
+meas.biasFactor=1;
 
-F_pos = 1000;  % [Hz] Time frequency of position update in simulation 
+F_pos = 1000;                     % [Hz] Time frequency of position update in simulation 
 assert(mod(meas.Fs,F_pos) == 0)
-pos.N_update = meas.Fs/F_pos;  % update position every N steps in simulation
+pos.N_update = meas.Fs/F_pos;     % update position every N steps in simulation
 pos.inds_update = 1:pos.N_update:meas.N;
 
 % Low dynamics
@@ -48,7 +48,7 @@ pos.inds_update = 1:pos.N_update:meas.N;
 
 meas.time_point_release = 40;
 
-gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500); % Gyro continous noise 
+gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500);   % Gyro continous noise 
 accNoiseSigCont = meas.noiseFactor*100/sqrt(500);     % Acc continous noise 
 
 gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg); 
@@ -60,10 +60,10 @@ rad2deg(gyro.noiseSigDisc);
 pos.sig = 1e-1;        % Sigma position update
 
 % estimate a constant bias
-acc.Qsig = meas.biasFactor*0;                                % accelerometer bias value, From  Carlsson2021
-gyro.Qsig = meas.biasFactor*0;                               % gyro bias value, From  Carlsson2021
-acc.truthSig = meas.noiseFactor*0.2;
-gyro.truthSig = meas.noiseFactor*deg2rad(1);   
+acc.Q_b_a = meas.biasFactor*0;                      % accelerometer bias value, From  Carlsson2021
+gyro.Q_b_g = meas.biasFactor*0;                     % gyro bias value, From  Carlsson2021
+acc.init_b_a = meas.noiseFactor*0.2;               % initial acceleration bias
+gyro.init_b_g = meas.noiseFactor*deg2rad(1);       % initial gyro bias
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% genBodyFrameAngleTrajectory
@@ -144,21 +144,14 @@ function [pos]=getSensorPositions(pos)
 global showfigures;
 
 % sensor positions in body frame
-% pos.body = [
-%    0    0    0
-%    0    0.1  0
-%    1    0    0
-%    0    0   0.1]';
-pos.body = [0.1444, 0, 0.0252;
-   -0.1444, 0.0252, 0;
-    0.0252, 0.1444, 0;
-    0,-0.1444, 0.0252;
-    0, 0.0252, 0.1444;
-    0.0252, 0,-0.1444]';
-
+pos.body = [
+   0    0    0
+   0    0.1  0
+   1    0    0
+   0    0   0.1]';
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
-i_IMU_select = 1:6; % select specific IMUs from the list in case that not all IMU are used
+i_IMU_select = 1:4; % select specific IMUs from the list in case that not all IMU are used
 pos.body = pos.body(:,i_IMU_select);   % Select specific IMUs for calculations
 %%
 pos.bodyCorr = pos.body - mean(pos.body,2);   % corrected by centroid of sensor positions
@@ -299,8 +292,8 @@ truth.gyro_u = w_b;                                            % Angular velocit
 %%
 rng("default");  % set random number generator type
 
-truth.biasGyro = gyro.truthSig*randn(3,1)/sqrt(K);
-truth.biasAcc = acc.truthSig*randn(3*K,1);            
+truth.biasGyro = gyro.init_b_g*randn(3,1)/sqrt(K);
+truth.biasAcc = acc.init_b_a*randn(3*K,1);            
 
 A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
 b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
@@ -333,7 +326,7 @@ pos.noise(:,meas.t > meas.time_point_release) = nan;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% setSimulationParameters
-function [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default, meas)
+function [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default)
 % Initial values 
 
 rng("default");
@@ -351,10 +344,10 @@ init.mean.v = truth.v(:,1) + chol(init.cov.v)*randn(3,1);
 init.mean.omega = truth.gyro_u(:,1) + gyro.noise(:,1);
 
 init.mean.b_a = zeros(3*K,1);
-init.cov.b_a = acc.truthSig^2*eye(3*K)*3;
+init.cov.b_a = acc.init_b_a^2*eye(3*K)*3;
 
 init.mean.b_g = zeros(3,1);
-init.cov.b_g = eye(3)*gyro.truthSig^2/K*3;
+init.cov.b_g = eye(3)*gyro.init_b_g^2/K*3;
 
 % Run Filters
 
@@ -371,10 +364,10 @@ simdata.accelerometer_array_2nd_order.set_T2_R_zero = false;
 simdata.accelerometer_array_2nd_order.get_model = @D_LG_EKF_Array_v4_alpha;
 simdata.accelerometer_array_2nd_order.r = pos.bodyCorr;
 simdata.accelerometer_array_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.accelerometer_array_2nd_order.Q_bias_acc = acc.Qsig^2*eye(3*K);
+simdata.accelerometer_array_2nd_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
 simdata.accelerometer_array_2nd_order.R_pos = pos.sig^2*eye(3);
 simdata.accelerometer_array_2nd_order.R_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.accelerometer_array_2nd_order.Q_bias_gyro = gyro.Qsig^2*eye(3)/K;
+simdata.accelerometer_array_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.accelerometer_array_2nd_order.do_gyro_updates = true;
 simdata.accelerometer_array_2nd_order.do_position_updates = true;
 simdata.accelerometer_array_2nd_order.do_rotation_updates = false;
@@ -389,10 +382,10 @@ simdata.accelerometer_array_1st_order.set_T2_R_zero = true;
 simdata.accelerometer_array_1st_order.get_model = @D_LG_EKF_Array_v4_alpha;
 simdata.accelerometer_array_1st_order.r = pos.bodyCorr;
 simdata.accelerometer_array_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.accelerometer_array_1st_order.Q_bias_acc = acc.Qsig^2*eye(3*K);
+simdata.accelerometer_array_1st_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
 simdata.accelerometer_array_1st_order.R_pos = pos.sig^2*eye(3);
 simdata.accelerometer_array_1st_order.R_gyro = gyro.noiseSigDisc^2*eye(3);
-simdata.accelerometer_array_1st_order.Q_bias_gyro = gyro.Qsig^2*eye(3)/K;
+simdata.accelerometer_array_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.accelerometer_array_1st_order.do_gyro_updates = true;
 simdata.accelerometer_array_1st_order.do_position_updates = true;
 simdata.accelerometer_array_1st_order.do_rotation_updates = false;
@@ -408,10 +401,10 @@ simdata.gyroscope_2nd_order.set_T2_R_zero = false;
 simdata.gyroscope_2nd_order.get_model = @D_LG_EKF_Gyro_2nd_v4;
 simdata.gyroscope_2nd_order.r = pos.bodyCorr;
 simdata.gyroscope_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.gyroscope_2nd_order.Q_bias_acc = acc.Qsig^2*eye(3*K);
+simdata.gyroscope_2nd_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
 simdata.gyroscope_2nd_order.R_pos = pos.sig^2*eye(3);
 simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Qsig^2*eye(3)/K;
+simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.gyroscope_2nd_order.do_gyro_updates = false;
 simdata.gyroscope_2nd_order.do_position_updates = true;
 simdata.gyroscope_2nd_order.do_rotation_updates = false;
@@ -426,19 +419,19 @@ simdata.gyroscope_1st_order.propagate_velocity = true;
 simdata.gyroscope_1st_order.get_model = @D_LG_EKF_Gyro_1st_v4;
 simdata.gyroscope_1st_order.N_a = K;
 simdata.gyroscope_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.gyroscope_1st_order.Q_bias_acc = acc.Qsig^2*eye(3*K);
+simdata.gyroscope_1st_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
 simdata.gyroscope_1st_order.R_pos = pos.sig^2*eye(3);
 simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Qsig^2*eye(3)/K;
+simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.gyroscope_1st_order.do_gyro_updates = false;
 simdata.gyroscope_1st_order.do_position_updates = true;
 simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
 sensorData = struct;
-sensorData.acc_measurements = truth.acc_u + truth.biasAcc*meas.biasFactor + acc.noise*meas.noiseFactor*0;
-sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro*meas.biasFactor  + gyro.noise*meas.noiseFactor*0;
-sensorData.position_measurements = truth.pos + pos.noise*meas.noiseFactor;
+sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
+sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
+sensorData.position_measurements = truth.pos + pos.noise;
 
 % Run filters 
 run_settings = struct;

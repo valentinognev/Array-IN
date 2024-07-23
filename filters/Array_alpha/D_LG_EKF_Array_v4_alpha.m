@@ -207,7 +207,7 @@ classdef D_LG_EKF_Array_v4_alpha
 
             h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)
             
-            alpha = obj.A*(y_a - h) + b_alpha*0 + w_alpha;
+            alpha = obj.A*(y_a - h) + b_alpha + w_alpha;
  
             omega_dot = alpha(1:3); % Angular acceleration in body coordinates           
             s = alpha(4:6);         % Specific force (acceleration) in body coordinates       
