@@ -113,7 +113,7 @@ theta = m.theta;
 function [truth, w_b, w_dot_b] = getNav2BodyRotHistory(phi, theta, meas, vels)
 global showfigures;
 
-truth.R_bn = R_bn_spherical(phi,theta); % calculate navigation to body frame rotation matrix history
+truth.R_bn = R_bn_spherical(phi,theta, vels.Rb_om, vels.Rn_om); % calculate navigation to body frame rotation matrix history
 R_offset = eye(3);
 
 w_b = R_offset*vels.w_b;
