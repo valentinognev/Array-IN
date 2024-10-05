@@ -210,7 +210,8 @@ bCropTheFigure = 1; % [0 (false)   1 (true)]
 % could have different dimensions from the one shown on the screen!
 set(gcf, 'PaperPositionMode', 'auto');        
 
-
+bPrintOnFile_Pdf=0;
+bPrintOnFile_Eps=0;
 % saving on file: requires some checks
 if( bPrintOnFile_Pdf || bPrintOnFile_Eps )
     %

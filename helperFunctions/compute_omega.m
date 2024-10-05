@@ -62,4 +62,6 @@ vels.w_dot_b = w_dot_b;
 
 vels.w_n = w_n;
 vels.w_dot_n = w_dot_n;
+vels.Rn_om=Rn_om;
+vels.Rb_om=Rb_om;
 end
