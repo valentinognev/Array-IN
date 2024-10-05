@@ -1,6 +1,6 @@
 %% Single Trajectory simulation 
 %% 
-function run_script_single_3
+function run_script_single_3_LSdyna
 % 
 % Simulations
 % Create noisy measurements and a complicated trajectory.
@@ -21,9 +21,181 @@ mkdir(pathData);
 [settings_default, inds]=getGeneralSettings(meas, pos);
 [truth] = generateMotionTrajectory(meas, truth);          % generation spatial motion
 [S_true, acc, gyro, pos, truth] = addNoiseAndBias(meas, pos, settings_default, gyro, acc, w_b, w_dot_b, truth, inds);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%% START INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if 1
+    data=load('../../Data/lssimDatad10.mat');
+    [tim, world, body, npoints]=getBodyData(data);
+    truth.pos = world.origin';
+    truth.v = world.vel_w';
+    truth.a = world.acc_w';
+    truth.R_nb = world.rot_wb;
+    truth.R_bn = world.rot_bw;
+
+    ntim=length(tim);
+    acc_u=zeros(3*npoints,ntim);
+    body.acc_origin = truth.a*0;
+    for i=1:ntim
+        bacc=body.acc(:,:,i);
+        acc_u(:,i) = bacc(:);
+        body.acc_origin(:,i) = squeeze(world.rot_bw(:,:,i))*truth.a(:,i);
+    end
+    truth.acc_u=acc_u;
+    truth.gyro_u=truth.v*0;
+
+    meas.N=ntim;
+    meas.t=tim;
+    meas.T_end = tim(end);
+    meas.Ts=tim(2)-tim(1);
+    meas.Fs=1/meas.Ts;
+
+    truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
+    acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
+    acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
+    gyro.noise = chol(gyro.Q)*randn(3,meas.N);
+
+    pos.body = [data.coordx(1,:); data.coordx(2,:); data.coordx(3,:)];
+    pos.bodyCorr = squeeze(body.r(:,:,1));
+    pos.noise = nan(3,meas.N);
+    % Position update every 10 sample
+    pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
+
+    % Release at 15 secs
+    pos.noise(:,meas.t > meas.time_point_release) = nan;
+
+    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
+    % assert(mod(meas.Fs,F_pos) == 0)
+    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
+    pos.inds_update = 1:pos.N_update:meas.N;
+
+    S_true.R = truth.R_nb;
+    S_true.w = w_b;
+    S_true.p = truth.pos;
+    S_true.v = truth.v;
+    S_true.omega_dot = truth.v*0;%w_dot_b;
+
+    A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
+    %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
+    S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias 
+    b_s_true = -A(4:6,:)*truth.biasAcc;
+    S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
+    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias 
+    S_true.s = body.acc_origin;                              % body linear acceleration in body frame
+
+    settings_default.r = pos.bodyCorr;
+    settings_default.T = meas.Ts;
+
+    figure(233);
+    plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%% END INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default);
 [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b);
 plotResults(meas, resSingle);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% getBodyData
+function [tim, world, body, npoints]=getBodyData(data)
+% cg.x=median(data.coordx(:,:), 2);
+% cg.y=cg.x*0;
+% cg.z=median(data.coordz(:,:), 2);
+indz=data.tim==0;
+data.disx(indz,:)=[];
+data.disy(indz,:)=[];
+data.disz(indz,:)=[];
+data.velx(indz,:)=[];
+data.vely(indz,:)=[];
+data.velz(indz,:)=[];
+data.accx(indz,:)=[];
+data.accy(indz,:)=[];
+data.accz(indz,:)=[];
+data.coordx(indz,:)=[];
+data.coordy(indz,:)=[];
+data.coordz(indz,:)=[];
+data.tim(indz)=[];
+
+npoints = length(data.coordx(1,:));
+ntim = length(data.tim);
+tim = data.tim*1e-6;
+world.origin = [data.coordx(:,15), data.coordy(:,15)*0, data.coordz(:,15)];
+
+dirX=[data.coordx(:,15)-data.coordx(:,16), data.coordy(:,15)-data.coordy(:,16), data.coordz(:,15)-data.coordz(:,16)];
+d24_16=[data.coordx(:,24)-data.coordx(:,16), data.coordy(:,24)-data.coordy(:,16), data.coordz(:,24)-data.coordz(:,16)];
+for i=1:length(dirX(:,1))
+    dirY(i,:)=cross(dirX(i,:), cross(d24_16(i,:), dirX(i,:)));
+    dirZ(i,:)=cross(dirX(i,:), dirY(i,:));
+    dirX(i,:)=dirX(i,:)/norm(dirX(i,:));
+    dirY(i,:)=dirY(i,:)/norm(dirY(i,:));
+    dirZ(i,:)=dirZ(i,:)/norm(dirZ(i,:));
+end
+world.coords.x=dirX;
+world.coords.y=dirY;
+world.coords.z=dirZ;
+
+world.vel_w = [data.velx(:,15), data.vely(:,15)*0, data.velz(:,15)];
+world.acc_w = [data.accx(:,15), data.accy(:,15)*0, data.accz(:,15)];
+
+world.rot_wb = zeros(3,3,ntim);
+world.rot_bw = zeros(3,3,ntim);
+for i=1:length(world.vel_w(:,1))
+    world.rot_wb(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)'];
+    world.rot_bw(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)']';
+end
+world.omegaMat = angular_velocitiesMat(data.tim, world.rot_wb);
+% world.omega = angular_velocities(data.tim, world.quat_wb);
+% world.omega_2 = angular_velocities2(data.tim, world.quat_wb);
+% world.omegadot = angular_accelerations(data.tim, world.quat_wb);
+
+body.r = zeros(3,npoints, length(tim)); 
+body.vel = zeros(3,npoints, length(tim)); 
+body.acc = zeros(3,npoints, length(tim)); 
+for i=1:length(world.vel_w(:,1))
+    rot_bw = squeeze(world.rot_wb(:,:,i));
+    body.r(:,:,i) = rot_bw*[data.coordx(i,:)-world.origin(i,1); 
+                     data.coordy(i,:)-world.origin(i,2);
+                     data.coordz(i,:)-world.origin(i,3)];
+
+    body.vel(:,:,i)=rot_bw*[data.velx(i,:); data.vely(i,:); data.velz(i,:)];
+    body.acc(:,:,i)=rot_bw*[data.accx(i,:); data.accy(i,:); data.accz(i,:)];
+end
+% 
+% figure(87);
+% subplot(3,1,1);
+% plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
+% legend('x', 'y', 'z');
+% xlabel('Time (s)'); ylabel('Acceleration (m/s^2)');
+% title('Body Acceleration');
+% subplot(3,1,2);
+% plot(tim, squeeze(body.vel(1,1,:))); hold on; plot(tim, squeeze(body.vel(2,1,:))); plot(tim, squeeze(body.vel(3,1,:)));
+% legend('x', 'y', 'z');
+% xlabel('Time (s)'); ylabel('Velocity (m/s)');
+% title('Body Velocity');
+% subplot(3,1,3);
+% plot(tim, squeeze(body.r(1,1,:))); hold on; plot(tim, squeeze(body.r(2,1,:))); plot(tim, squeeze(body.r(3,1,:)));
+% legend('x', 'y', 'z');
+% xlabel('Time (s)'); ylabel('Position (m)');
+% title('Body Position');
+
+disp ''
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% angular_velocitiesMat   - 
+function [omegaRot] = angular_velocitiesMat(tim, RHist)
+
+tlen=length(tim);
+dt=zeros(tlen,1);
+dt(1:end-1)=diff(tim);  dt(end)=dt(end-1);
+dRHist = zeros(3,3,tlen);
+dRHist(:,:,1:end-1) = diff(RHist, 1, 3);
+
+omegaRot = zeros(tlen,3);
+for i=1:tlen
+    omegaRot_n = squeeze(RHist(:,:,i))'*squeeze(dRHist(:,:,i))/dt(i);
+    omegaRot_n = (omegaRot_n-omegaRot_n')/2;
+    omegaRot(i,:) = [omegaRot_n(2,3), omegaRot_n(3,1), omegaRot_n(1,2)];
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% initSamplingData
@@ -390,44 +562,7 @@ simdata.accelerometer_array_1st_order.do_gyro_updates = true;
 simdata.accelerometer_array_1st_order.do_position_updates = true;
 simdata.accelerometer_array_1st_order.do_rotation_updates = false;
 simdata.accelerometer_array_1st_order.label = "1st order accelerometer array";
-
-simdata.gyroscope_2nd_order = settings_default;
-simdata.gyroscope_2nd_order.propagate_bias_gyro = true;
-simdata.gyroscope_2nd_order.input_accelerometers = true;
-simdata.gyroscope_2nd_order.propagate_position = true;
-simdata.gyroscope_2nd_order.propagate_velocity = true;
-simdata.gyroscope_2nd_order.propagate_bias_s = true;
-simdata.gyroscope_2nd_order.set_T2_R_zero = false;
-simdata.gyroscope_2nd_order.get_model = @D_LG_EKF_Gyro_2nd_v4;
-simdata.gyroscope_2nd_order.r = pos.bodyCorr;
-simdata.gyroscope_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.gyroscope_2nd_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
-simdata.gyroscope_2nd_order.R_pos = pos.sig^2*eye(3);
-simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
-simdata.gyroscope_2nd_order.do_gyro_updates = false;
-simdata.gyroscope_2nd_order.do_position_updates = true;
-simdata.gyroscope_2nd_order.do_rotation_updates = false;
-simdata.gyroscope_2nd_order.label = "2nd order gyroscope";
-
-simdata.gyroscope_1st_order = settings_default;
-simdata.gyroscope_1st_order.input_accelerometers = true;
-simdata.gyroscope_1st_order.propagate_bias_s = true;
-simdata.gyroscope_1st_order.propagate_bias_gyro = true;
-simdata.gyroscope_1st_order.propagate_position = true;
-simdata.gyroscope_1st_order.propagate_velocity = true;
-simdata.gyroscope_1st_order.get_model = @D_LG_EKF_Gyro_1st_v4;
-simdata.gyroscope_1st_order.N_a = K;
-simdata.gyroscope_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.gyroscope_1st_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
-simdata.gyroscope_1st_order.R_pos = pos.sig^2*eye(3);
-simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
-simdata.gyroscope_1st_order.do_gyro_updates = false;
-simdata.gyroscope_1st_order.do_position_updates = true;
-simdata.gyroscope_1st_order.do_rotation_updates = false;
-simdata.gyroscope_1st_order.label = "1st order gyroscope";
-
+% 
 sensorData = struct;
 sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
 sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
@@ -447,8 +582,6 @@ resSingle = struct;
 resSingle.label = "";
 [~,resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
 [~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
-[~, resSingle.gyroscope_2nd_order] = run_filter(sensorData, init, simdata.gyroscope_2nd_order,run_settings, S_true);
-[~,resSingle.gyroscope_1st_order] = run_filter(sensorData, init, simdata.gyroscope_1st_order,run_settings, S_true);
 
 %
 true_traj = struct;
