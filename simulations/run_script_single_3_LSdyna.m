@@ -116,6 +116,22 @@ data.coordx(indz,:)=[];
 data.coordy(indz,:)=[];
 data.coordz(indz,:)=[];
 data.tim(indz)=[];
+downsampling = 100;
+indzd = 1:downsampling:length(data.tim);
+
+data.disx=data.disx(indzd,:); data.disy=data.disy(indzd,:); data.disz=data.disz(indzd,:);
+data.velx=data.velx(indzd,:); data.vely=data.vely(indzd,:); data.velz=data.velz(indzd,:);
+data.accx=data.accx(indzd,:); data.accy=data.accy(indzd,:); data.accz=data.accz(indzd,:);
+data.coordx=data.coordx(indzd,:); data.coordy=data.coordy(indzd,:); data.coordz=data.coordz(indzd,:);
+data.tim=data.tim(indzd);
+
+if downsampling>1
+    data.velx = diff(data.coordx)./diff(data.tim);    data.vely = diff(data.coordy)./diff(data.tim);   data.velz = diff(data.coordz)./diff(data.tim);
+    data.velx = [data.velx; data.velx(end,:)];      data.vely = [data.vely; data.vely(end,:)];       data.velz = [data.velz; data.velz(end,:)];
+    data.accx = diff(data.velx)./diff(data.tim);    data.accy = diff(data.vely)./diff(data.tim);   data.accz = diff(data.velz)./diff(data.tim);
+    data.accx = [data.accx; data.accx(end,:)];      data.accy = [data.accy; data.accy(end,:)];       data.accz = [data.accz; data.accz(end,:)];
+    data.disx = cumsum(data.velx.*diff(data.tim));  data.disy = cumsum(data.vely.*diff(data.tim));   data.disz = cumsum(data.velz.*diff(data.tim));
+end
 
 npoints = length(data.coordx(1,:));
 ntim = length(data.tim);
