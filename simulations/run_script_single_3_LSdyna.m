@@ -4,7 +4,7 @@ function run_script_single_3_LSdyna
 % 
 % Simulations
 % Create noisy measurements and a complicated trajectory.
-% close all
+close all
 
 global showfigures;
 
@@ -27,19 +27,18 @@ mkdir(pathData);
 if 1
     data=load('../../Data/lssimDatad10.mat');
     [tim, world, body, npoints]=getBodyData(data);
-    truth.pos = world.origin';
-    truth.v = world.vel_w';
-    truth.a = world.acc_w';
+    truth.pos = world.origin.pos;
+    truth.v = world.origin.vel;
+    truth.a = world.origin.acc;
     truth.R_nb = world.rot_wb;
     truth.R_bn = world.rot_bw;
 
     ntim=length(tim);
     acc_u=zeros(3*npoints,ntim);
-    body.acc_origin = truth.a*0;
+    body.acc_origin = body.origin.acc;
     for i=1:ntim
         bacc=body.acc(:,:,i);
         acc_u(:,i) = bacc(:);
-        body.acc_origin(:,i) = squeeze(world.rot_bw(:,:,i))*truth.a(:,i);
     end
     truth.acc_u=acc_u;
     truth.gyro_u=truth.v*0;
@@ -55,19 +54,19 @@ if 1
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
     gyro.noise = chol(gyro.Q)*randn(3,meas.N);
 
+    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
+    % assert(mod(meas.Fs,F_pos) == 0)
+    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
+    pos.inds_update = 1:pos.N_update:meas.N;
+
     pos.body = [data.coordx(1,:); data.coordx(2,:); data.coordx(3,:)];
-    pos.bodyCorr = squeeze(body.r(:,:,1));
+    pos.bodyCorr = squeeze(body.pos(:,:,1));
     pos.noise = nan(3,meas.N);
     % Position update every 10 sample
     pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
 
     % Release at 15 secs
     pos.noise(:,meas.t > meas.time_point_release) = nan;
-
-    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
-    % assert(mod(meas.Fs,F_pos) == 0)
-    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
-    pos.inds_update = 1:pos.N_update:meas.N;
 
     S_true.R = truth.R_nb;
     S_true.w = w_b;
@@ -119,44 +118,54 @@ data.tim(indz)=[];
 downsampling = 100;
 indzd = 1:downsampling:length(data.tim);
 
-data.disx=data.disx(indzd,:); data.disy=data.disy(indzd,:); data.disz=data.disz(indzd,:);
-data.velx=data.velx(indzd,:); data.vely=data.vely(indzd,:); data.velz=data.velz(indzd,:);
-data.accx=data.accx(indzd,:); data.accy=data.accy(indzd,:); data.accz=data.accz(indzd,:);
-data.coordx=data.coordx(indzd,:); data.coordy=data.coordy(indzd,:); data.coordz=data.coordz(indzd,:);
-data.tim=data.tim(indzd);
+timfactor = 1e-3;
+posfactor = 1e-3;
+velfactor = posfactor/timfactor;
+accfactor = posfactor/timfactor/timfactor;
+
+data.disx=data.disx(indzd,:)*posfactor; data.disy=data.disy(indzd,:)*posfactor; data.disz=data.disz(indzd,:)*posfactor;
+data.velx=data.velx(indzd,:)*velfactor; data.vely=data.vely(indzd,:)*velfactor; data.velz=data.velz(indzd,:)*velfactor;
+data.accx=data.accx(indzd,:)*accfactor; data.accy=data.accy(indzd,:)*accfactor; data.accz=data.accz(indzd,:)*accfactor;
+data.coordx=data.coordx(indzd,:)*posfactor; data.coordy=data.coordy(indzd,:)*posfactor; data.coordz=data.coordz(indzd,:)*posfactor;
+data.tim=data.tim(indzd)*timfactor;
+tim = data.tim;
+
+dt=diff(tim); dt(end+1)=dt(end);
 
 if downsampling>1
     data.velx = diff(data.coordx)./diff(data.tim);    data.vely = diff(data.coordy)./diff(data.tim);   data.velz = diff(data.coordz)./diff(data.tim);
     data.velx = [data.velx; data.velx(end,:)];      data.vely = [data.vely; data.vely(end,:)];       data.velz = [data.velz; data.velz(end,:)];
+
     data.accx = diff(data.velx)./diff(data.tim);    data.accy = diff(data.vely)./diff(data.tim);   data.accz = diff(data.velz)./diff(data.tim);
     data.accx = [data.accx; data.accx(end,:)];      data.accy = [data.accy; data.accy(end,:)];       data.accz = [data.accz; data.accz(end,:)];
-    data.disx = cumsum(data.velx.*diff(data.tim));  data.disy = cumsum(data.vely.*diff(data.tim));   data.disz = cumsum(data.velz.*diff(data.tim));
+
+    data.disx = cumsum(data.velx.*dt,1);  data.disy = cumsum(data.vely.*dt,1);   data.disz = cumsum(data.velz.*dt,1);
 end
 
 npoints = length(data.coordx(1,:));
 ntim = length(data.tim);
-tim = data.tim*1e-6;
-world.origin = [data.coordx(:,15), data.coordy(:,15)*0, data.coordz(:,15)];
 
 dirX=[data.coordx(:,15)-data.coordx(:,16), data.coordy(:,15)-data.coordy(:,16), data.coordz(:,15)-data.coordz(:,16)];
 d24_16=[data.coordx(:,24)-data.coordx(:,16), data.coordy(:,24)-data.coordy(:,16), data.coordz(:,24)-data.coordz(:,16)];
-for i=1:length(dirX(:,1))
-    dirY(i,:)=cross(dirX(i,:), cross(d24_16(i,:), dirX(i,:)));
-    dirZ(i,:)=cross(dirX(i,:), dirY(i,:));
+for i=1:length(tim)
+    dirZ(i,:)=cross(dirX(i,:), cross(d24_16(i,:), dirX(i,:)));
+    dirY(i,:)=cross(dirX(i,:), dirZ(i,:));
     dirX(i,:)=dirX(i,:)/norm(dirX(i,:));
     dirY(i,:)=dirY(i,:)/norm(dirY(i,:));
     dirZ(i,:)=dirZ(i,:)/norm(dirZ(i,:));
+    disp ''
 end
-world.coords.x=dirX;
-world.coords.y=dirY;
-world.coords.z=dirZ;
+world.frame.x=dirX;
+world.frame.y=dirY;
+world.frame.z=dirZ;
 
-world.vel_w = [data.velx(:,15), data.vely(:,15)*0, data.velz(:,15)];
-world.acc_w = [data.accx(:,15), data.accy(:,15)*0, data.accz(:,15)];
+world.origin.pos = [data.coordx(:,15), data.coordy(:,15), data.coordz(:,15)]';
+world.origin.vel = [data.velx(:,15), data.vely(:,15), data.velz(:,15)]';
+world.origin.acc = [data.accx(:,15), data.accy(:,15), data.accz(:,15)]';
 
 world.rot_wb = zeros(3,3,ntim);
 world.rot_bw = zeros(3,3,ntim);
-for i=1:length(world.vel_w(:,1))
+for i=1:length(tim)
     world.rot_wb(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)'];
     world.rot_bw(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)']';
 end
@@ -165,32 +174,67 @@ world.omegaMat = angular_velocitiesMat(data.tim, world.rot_wb);
 % world.omega_2 = angular_velocities2(data.tim, world.quat_wb);
 % world.omegadot = angular_accelerations(data.tim, world.quat_wb);
 
-body.r = zeros(3,npoints, length(tim)); 
-body.vel = zeros(3,npoints, length(tim)); 
-body.acc = zeros(3,npoints, length(tim)); 
-for i=1:length(world.vel_w(:,1))
+body.pos = zeros(3,npoints, length(tim));         body.vel = zeros(3,npoints, length(tim));         body.acc = zeros(3,npoints, length(tim)); 
+body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
+world.pos = zeros(3,npoints, length(tim)); 
+for i=1:length(tim)
     rot_bw = squeeze(world.rot_wb(:,:,i));
-    body.r(:,:,i) = rot_bw*[data.coordx(i,:)-world.origin(i,1); 
-                     data.coordy(i,:)-world.origin(i,2);
-                     data.coordz(i,:)-world.origin(i,3)];
+    world.pos(:,:,i)=[data.coordx(i,:)-world.origin.pos(1,1); 
+                      data.coordy(i,:)-world.origin.pos(1,2);
+                      data.coordz(i,:)-world.origin.pos(1,3)];
+    world.vel(:,:,i)=[data.velx(i,:); data.vely(i,:); data.velz(i,:)];
+    world.acc(:,:,i)=[data.accx(i,:); data.accy(i,:); data.accz(i,:)];
 
-    body.vel(:,:,i)=rot_bw*[data.velx(i,:); data.vely(i,:); data.velz(i,:)];
-    body.acc(:,:,i)=rot_bw*[data.accx(i,:); data.accy(i,:); data.accz(i,:)];
+    body.pos(:,:,i) = rot_bw*world.pos(:,:,i);              body.vel(:,:,i) = rot_bw*world.vel(:,:,i);              body.acc(:,:,i) = rot_bw*world.acc(:,:,i);
+    body.origin.pos(:,i) = rot_bw*world.origin.pos(:,i);    body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
 end
-% 
+dpos = diff(world.pos,1,3);  dpos(:,:,end+1)=dpos(:,:,end);
+ddpos = diff(dpos,1,3);  ddpos(:,:,end+1)=ddpos(:,:,end);
+for i=1:length(tim)
+    world.vel2(:,:,i)=dpos(:,:,i)./dt(i);
+    world.acc2(:,:,i)=ddpos(:,:,i)./dt(i)/dt(i);
+end
+% plot3(squeeze(world.pos(1,:,end)), squeeze(world.pos(2,:,end)), squeeze(world.pos(3,:,end)), 'x'); grid on; axis equal; hold on
+% plot3(squeeze(world.pos(1,:,1)), squeeze(world.pos(2,:,1)), squeeze(world.pos(3,:,1)), 'x'); grid on; axis equal
+
+% figure(354)
+% plot(tim, squeeze(world.vel(1,1,:)), tim, squeeze(world.vel(2,1,:)), tim, squeeze(world.vel(3,1,:))); grid on; hold on
+% % plot(tim, squeeze(world.vel2(1,1,:)), tim, squeeze(world.vel2(2,1,:)), tim, squeeze(world.vel2(3,1,:))); grid on; hold on
+% plot(tim, sqrt(squeeze(world.vel(1,1,:)).^2+squeeze(world.vel(2,1,:)).^2+squeeze(world.vel(3,1,:)).^2));
+% % plot(tim, sqrt(squeeze(world.vel2(1,1,:)).^2+squeeze(world.vel2(2,1,:)).^2+squeeze(world.vel2(3,1,:)).^2));
+% legend('x', 'y', 'z', 'x2', 'y2', 'z2', 'norm1', 'norm2')
+% figure(435)
+% plot(tim, squeeze(world.acc(1,1,:)), tim, squeeze(world.acc(2,1,:)), tim, squeeze(world.acc(3,1,:))); grid on; hold on
+% plot(tim, squeeze(world.acc2(1,1,:)), tim, squeeze(world.acc2(2,1,:)), tim, squeeze(world.acc2(3,1,:))); grid on; hold on
+% plot(tim, sqrt(squeeze(world.acc(1,1,:)).^2+squeeze(world.acc(2,1,:)).^2+squeeze(world.acc(3,1,:)).^2));
+% plot(tim, sqrt(squeeze(world.acc2(1,1,:)).^2+squeeze(world.acc2(2,1,:)).^2+squeeze(world.acc2(3,1,:)).^2));
+% legend('x', 'y', 'z', 'x2', 'y2', 'z2', 'norm1', 'norm2')
+
 % figure(87);
-% subplot(3,1,1);
+% subplot(2,1,1);
 % plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
 % legend('x', 'y', 'z');
 % xlabel('Time (s)'); ylabel('Acceleration (m/s^2)');
 % title('Body Acceleration');
-% subplot(3,1,2);
+% subplot(2,1,2);
+% plot(tim, squeeze(world.acc(1,1,:))); hold on; plot(tim, squeeze(world.acc(2,1,:))); plot(tim, squeeze(world.acc(3,1,:)));
+% legend('x', 'y', 'z');
+% xlabel('Time (s)'); ylabel('Acceleration (m/s^2)');
+% title('World Acceleration');
+
 % plot(tim, squeeze(body.vel(1,1,:))); hold on; plot(tim, squeeze(body.vel(2,1,:))); plot(tim, squeeze(body.vel(3,1,:)));
 % legend('x', 'y', 'z');
 % xlabel('Time (s)'); ylabel('Velocity (m/s)');
 % title('Body Velocity');
 % subplot(3,1,3);
-% plot(tim, squeeze(body.r(1,1,:))); hold on; plot(tim, squeeze(body.r(2,1,:))); plot(tim, squeeze(body.r(3,1,:)));
+% figure(45);
+% subplot(2,1,1)
+% plot(tim, world.origin.pos(:,1)); hold on; grid on;plot(tim, world.origin.pos(:,2)); plot(tim, world.origin.pos(:,3)); 
+% legend('x', 'y', 'z');
+% xlabel('Time (s)'); ylabel('Position (m)');
+% title('World Position');
+% subplot(2,1,2)
+% plot(tim, squeeze(body.pos(1,1,:))); hold on; grid on; plot(tim, squeeze(body.pos(2,1,:))); plot(tim, squeeze(body.pos(3,1,:)));
 % legend('x', 'y', 'z');
 % xlabel('Time (s)'); ylabel('Position (m)');
 % title('Body Position');
