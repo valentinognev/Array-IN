@@ -640,8 +640,8 @@ run_settings.save_residuals = true;
 function [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b)
 resSingle = struct;
 resSingle.label = "";
-[~,resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
-[~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
+[~, resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
+% [~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
 
 %
 true_traj = struct;

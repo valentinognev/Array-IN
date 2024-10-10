@@ -253,7 +253,16 @@
         if n==(Nt-10)
             disp ''
         end
-                
+                % R_maj - Lie group rotation matrix - Rotation between body frame to navigation frame
+                % x - positionwhich includes:
+                %     x(1:3);     % angular velocity in body frame
+                %     x(4:6);     % position in navigation frame
+                %     x(7:9);     % velocity in navigation frame
+                %     x(10:12)    % bias in angular acceleration measurement
+                %     x(13:15)    % bias in linear acceleration measurement
+                %     x(16:18)    % bias in gyro measurement
+                % u_n - sensor acceleration data in body frame
+                % w - white nosie estimation, for: omega_dot, acc, bias of omega_dot, bias of acc gyro
         resProp = model.propagate(R_maj, x_maj, u_n, w);
         Omega_n = resProp.Omega;
         dOmega_de_n = resProp.dOmega_de;

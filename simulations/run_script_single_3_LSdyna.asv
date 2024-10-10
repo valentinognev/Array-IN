@@ -54,7 +54,9 @@ if 1
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
     gyro.noise = chol(gyro.Q)*randn(3,meas.N);
 
-    pos.N_update = meas.Fs/F_pos;     % update position every N steps in simulation
+    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
+    % assert(mod(meas.Fs,F_pos) == 0)
+    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
     pos.inds_update = 1:pos.N_update:meas.N;
 
     pos.body = [data.coordx(1,:); data.coordx(2,:); data.coordx(3,:)];
@@ -65,11 +67,6 @@ if 1
 
     % Release at 15 secs
     pos.noise(:,meas.t > meas.time_point_release) = nan;
-
-    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
-    % assert(mod(meas.Fs,F_pos) == 0)
-    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
-    pos.inds_update = 1:pos.N_update:meas.N;
 
     S_true.R = truth.R_nb;
     S_true.w = w_b;
@@ -643,8 +640,8 @@ run_settings.save_residuals = true;
 function [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b)
 resSingle = struct;
 resSingle.label = "";
-[~,resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
-[~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
+[~, resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
+% [~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
 
 %
 true_traj = struct;
