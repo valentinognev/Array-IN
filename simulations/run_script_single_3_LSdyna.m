@@ -1,7 +1,7 @@
-%% Single Trajectory simulation 
-%% 
+%% Single Trajectory simulation
+%%
 function run_script_single_3_LSdyna
-% 
+%
 % Simulations
 % Create noisy measurements and a complicated trajectory.
 close all
@@ -14,7 +14,7 @@ pathScript = fileparts(matlab.desktop.editor.getActiveFilename);
 pathData = fullfile(pathScript,"data");
 mkdir(pathData);
 
-[meas, acc, gyro, pos]=initSamplingData(); 
+[meas, acc, gyro, pos]=initSamplingData();
 [phi, theta, vels]=genBodyFrameAngleTrajectory(meas);     % generation of angulat motion
 [truth, w_b, w_dot_b] = getNav2BodyRotHistory(phi, theta, meas, vels);
 [pos]=getSensorPositions(pos);
@@ -27,6 +27,8 @@ mkdir(pathData);
 if 1
     data=load('../../Data/lssimDatad10.mat');
     [tim, world, body, npoints]=getBodyData(data);
+    cardou12axis(body);
+    
     truth.pos = world.origin.pos;
     truth.v = world.origin.vel;
     truth.a = world.origin.acc;
@@ -52,7 +54,7 @@ if 1
     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
     acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
-    gyro.noise = chol(gyro.Q)*randn(3,meas.N);
+    gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;
 
     F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
     % assert(mod(meas.Fs,F_pos) == 0)
@@ -76,10 +78,10 @@ if 1
 
     A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
     %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
-    S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias 
+    S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
     b_s_true = -A(4:6,:)*truth.biasAcc;
     S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
-    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias 
+    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias
     S_true.s = body.acc_origin;                              % body linear acceleration in body frame
 
     settings_default.r = pos.bodyCorr;
@@ -87,6 +89,8 @@ if 1
 
     figure(233);
     plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
+    figure(234);
+    plot(tim, squeeze(body.omega(1,1,:))); hold on; plot(tim, squeeze(body.omega(2,1,:))); plot(tim, squeeze(body.omega(3,1,:)));
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% END INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -118,30 +122,33 @@ data.tim(indz)=[];
 downsampling = 100;
 indzd = 1:downsampling:length(data.tim);
 
-timfactor = 1e-3;
+timfactor = 1e-6;
 posfactor = 1e-3;
 velfactor = posfactor/timfactor;
 accfactor = posfactor/timfactor/timfactor;
 
-data.disx=data.disx(indzd,:)*posfactor; data.disy=data.disy(indzd,:)*posfactor; data.disz=data.disz(indzd,:)*posfactor;
-data.velx=data.velx(indzd,:)*velfactor; data.vely=data.vely(indzd,:)*velfactor; data.velz=data.velz(indzd,:)*velfactor;
-data.accx=data.accx(indzd,:)*accfactor; data.accy=data.accy(indzd,:)*accfactor; data.accz=data.accz(indzd,:)*accfactor;
-data.coordx=data.coordx(indzd,:)*posfactor; data.coordy=data.coordy(indzd,:)*posfactor; data.coordz=data.coordz(indzd,:)*posfactor;
+%  Downsampling
+data.disx2=data.disx(indzd,:)'*posfactor; data.disy2=data.disy(indzd,:)'*posfactor; data.disz2=data.disz(indzd,:)'*posfactor;
+data.velx2=data.velx(indzd,:)'*velfactor; data.vely2=data.vely(indzd,:)'*velfactor; data.velz2=data.velz(indzd,:)'*velfactor;
+data.accx2=data.accx(indzd,:)'*accfactor; data.accy2=data.accy(indzd,:)'*accfactor; data.accz2=data.accz(indzd,:)'*accfactor;
+data.coordx=data.coordx(indzd,:)'*posfactor; data.coordy=data.coordy(indzd,:)'*posfactor; data.coordz=data.coordz(indzd,:)'*posfactor;
 data.tim=data.tim(indzd)*timfactor;
 tim = data.tim;
 
-dt=diff(tim); dt(end+1)=dt(end);
+dt=diff(tim'); dt(end+1)=dt(end);
 
-if downsampling>1
-    data.velx = diff(data.coordx)./diff(data.tim);    data.vely = diff(data.coordy)./diff(data.tim);   data.velz = diff(data.coordz)./diff(data.tim);
-    data.velx = [data.velx; data.velx(end,:)];      data.vely = [data.vely; data.vely(end,:)];       data.velz = [data.velz; data.velz(end,:)];
+% recalculation of velocities and accelerations
+data.velx = diff(data.coordx,1,2)./diff(data.tim');    data.vely = diff(data.coordy,1,2)./diff(data.tim)';   data.velz = diff(data.coordz,1,2)./diff(data.tim');
+data.velx = [data.velx, data.velx(:,end)];      data.vely = [data.vely, data.vely(:,end)];       data.velz = [data.velz, data.velz(:,end)];
 
-    data.accx = diff(data.velx)./diff(data.tim);    data.accy = diff(data.vely)./diff(data.tim);   data.accz = diff(data.velz)./diff(data.tim);
-    data.accx = [data.accx; data.accx(end,:)];      data.accy = [data.accy; data.accy(end,:)];       data.accz = [data.accz; data.accz(end,:)];
+data.accx = diff(data.velx,1,2)./diff(data.tim');    data.accy = diff(data.vely,1,2)./diff(data.tim');   data.accz = diff(data.velz,1,2)./diff(data.tim');
+data.accx = [data.accx, data.accx(:,end)];      data.accy = [data.accy, data.accy(:,end)];       data.accz = [data.accz, data.accz(:,end)];
 
-    data.disx = cumsum(data.velx.*dt,1);  data.disy = cumsum(data.vely.*dt,1);   data.disz = cumsum(data.velz.*dt,1);
-end
+data.disx = cumsum(data.velx.*dt,2);  data.disy = cumsum(data.vely.*dt,2);   data.disz = cumsum(data.velz.*dt,2);
 
+plot(tim,data.disz(1,:)); hold on; plot(tim,data.disz2(1,:)); 
+legend({'original', 'downsampled'})
+% calculation body frame origin position and directions
 npoints = length(data.coordx(1,:));
 ntim = length(data.tim);
 
@@ -165,26 +172,41 @@ world.origin.acc = [data.accx(:,15), data.accy(:,15), data.accz(:,15)]';
 
 world.rot_wb = zeros(3,3,ntim);
 world.rot_bw = zeros(3,3,ntim);
+world.quat_wb = zeros(4,ntim);
+world.quat_bw = zeros(4,ntim);
 for i=1:length(tim)
     world.rot_wb(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)'];
     world.rot_bw(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)']';
+    world.quat_wb(:,i) = dcm2quat(squeeze(world.rot_wb(:,:,i)));
+    world.quat_bw(:,i) = dcm2quat(squeeze(world.rot_bw(:,:,i)));
+    disp ''
 end
-world.omegaMat = angular_velocitiesMat(data.tim, world.rot_wb);
-% world.omega = angular_velocities(data.tim, world.quat_wb);
-% world.omega_2 = angular_velocities2(data.tim, world.quat_wb);
-% world.omegadot = angular_accelerations(data.tim, world.quat_wb);
+world.omega = angular_velocitiesMat(data.tim, world.rot_wb)';
+% world.omega_qwb = angular_velocities(data.tim, world.quat_wb);
+% world.omega_qwb2 = angular_velocities2(data.tim, world.quat_wb,'w');
+% world.omegadot_qwb = angular_accelerations(data.tim, world.quat_wb,'w');
+world.omegadot = diff(world.omega,1,2); world.omegadot(:,end+1)=world.omegadot(:,end);
 
-body.pos = zeros(3,npoints, length(tim));         body.vel = zeros(3,npoints, length(tim));         body.acc = zeros(3,npoints, length(tim)); 
+% plot(data.tim, world.omega_qwb(1,:));hold on;plot(data.tim, world.omega_qwb2(1,:));plot(data.tim, world.omegaMat(1,:));
+% plot(data.tim, world.omega_qwb(2,:));hold on;plot(data.tim, world.omega_qwb2(2,:));plot(data.tim, world.omegaMat(2,:));
+% plot(data.tim, world.omega_qwb(3,:));hold on;plot(data.tim, world.omega_qwb2(3,:));plot(data.tim, world.omegaMat(3,:));
+%
+% plot(data.tim, world.omegadot_qwb(2,:));plot(data.tim, world.omegadot_qwb(3,:));
+% plot(data.tim, world.omegadot_2(2,:));plot(data.tim, world.omegadot_2(3,:));
+
+body.omega = zeros(3, length(tim)); body.omegadot = zeros(3,length(tim));
+body.pos = zeros(3,npoints, length(tim)); body.vel = zeros(3,npoints, length(tim)); body.acc = zeros(3,npoints, length(tim));
 body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
-world.pos = zeros(3,npoints, length(tim)); 
+world.pos = zeros(3,npoints, length(tim));
 for i=1:length(tim)
     rot_bw = squeeze(world.rot_wb(:,:,i));
-    world.pos(:,:,i)=[data.coordx(i,:)-world.origin.pos(1,1); 
-                      data.coordy(i,:)-world.origin.pos(1,2);
-                      data.coordz(i,:)-world.origin.pos(1,3)];
+    world.pos(:,:,i)=[data.coordx(i,:)-world.origin.pos(1,1);
+        data.coordy(i,:)-world.origin.pos(1,2);
+        data.coordz(i,:)-world.origin.pos(1,3)];
     world.vel(:,:,i)=[data.velx(i,:); data.vely(i,:); data.velz(i,:)];
     world.acc(:,:,i)=[data.accx(i,:); data.accy(i,:); data.accz(i,:)];
 
+    body.omega(:,i) = rot_bw*world.omega(:,i);              body.omegadot(:,i) = rot_bw*world.omegadot(:,i);
     body.pos(:,:,i) = rot_bw*world.pos(:,:,i);              body.vel(:,:,i) = rot_bw*world.vel(:,:,i);              body.acc(:,:,i) = rot_bw*world.acc(:,:,i);
     body.origin.pos(:,i) = rot_bw*world.origin.pos(:,i);    body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
 end
@@ -229,7 +251,7 @@ end
 % subplot(3,1,3);
 % figure(45);
 % subplot(2,1,1)
-% plot(tim, world.origin.pos(:,1)); hold on; grid on;plot(tim, world.origin.pos(:,2)); plot(tim, world.origin.pos(:,3)); 
+% plot(tim, world.origin.pos(:,1)); hold on; grid on;plot(tim, world.origin.pos(:,2)); plot(tim, world.origin.pos(:,3));
 % legend('x', 'y', 'z');
 % xlabel('Time (s)'); ylabel('Position (m)');
 % title('World Position');
@@ -241,7 +263,7 @@ end
 
 disp ''
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% angular_velocitiesMat   - 
+%% angular_velocitiesMat   -
 function [omegaRot] = angular_velocitiesMat(tim, RHist)
 
 tlen=length(tim);
@@ -257,9 +279,119 @@ for i=1:tlen
     omegaRot(i,:) = [omegaRot_n(2,3), omegaRot_n(3,1), omegaRot_n(1,2)];
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% angular_velocities    - 2022, Mario García, Angular velocity from Quaternions,
+%                          https://mariogc.com/post/angular-velocity-quaternions/
+function [omega] = angular_velocities(tim, qHist)
+% qHist must be in Body frame
+dt=diff(tim);
+q1 = qHist(:,1:end-1);
+q2 = qHist(:,2:end);
+if size(dt,2)==1
+    dt=dt';
+end
+omega = (2 ./ [1;1;1]*dt) .* [q1(1,:).*q2(2,:) - q1(2,:).*q2(1,:) - q1(3,:).*q2(4,:) + q1(4,:).*q2(3,:);...
+    q1(1,:).*q2(3,:) + q1(2,:).*q2(4,:) - q1(3,:).*q2(1,:) - q1(4,:).*q2(2,:);...
+    q1(1,:).*q2(4,:) - q1(2,:).*q2(3,:) + q1(3,:).*q2(2,:) - q1(4,:).*q2(1,:)];
+
+omega(:,end+1) = omega(:,end);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% angular_velocities_w - Angular velocities
+% 2002, Schwab, Quaternions, Finite Rotation and Euler Parameters
+function [omega] = angular_velocities2(tim, qHist, frame)
+% frame: 'w' for world frame, 'b' for body frame
+if nargin<3
+    frame = 'w';
+end
+dt=diff(tim);
+if size(dt,2)==1
+    dt=dt';
+end
+qdot = diff(qHist,1,2)./([1,1,1,1]'*dt);  qdot(:,end+1)=qdot(:,end);
+omega = zeros(4,length(qdot(1,:)));
+
+if frame=='w'
+    rotmat = QmatbarT(qHist);
+else
+    rotmat = QmatT(qHist);
+end
+
+for i=1:length(tim)
+    omega(:,i) = 2*rotmat(:,:,i)*qdot(:,i);  %2*QmatT(qHist)*qdot';
+end
+omega = omega(2:4,:);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% angular_accelerations   - 2002, Schwab, Quaternions, Finite Rotation and Euler Parameters
+% 2002, Schwab, Quaternions, Finite Rotation and Euler Parameters
+function [omegadot] = angular_accelerations(tim, qHist, frame)
+% frame: 'w' for world frame, 'b' for body frame
+if nargin<3
+    frame = 'w';
+end
+dt=diff(tim);
+qdot = diff(qHist,1,2)./([1;1;1;1]*dt');    qdot(:,end+1)=qdot(:,end);
+qdotdot = diff(qdot,1,2)./([1;1;1;1]*dt');  qdotdot(:,end+1)=qdotdot(:,end);
+
+if frame=='w'
+    rotmat = QmatbarT(qHist);
+else
+    rotmat = QmatT(qHist);
+end
+
+omegadot = zeros(4, length(tim));
+for i=1:length(tim)   %    2*QmatT(qHist)*qdotdot'+2*[norm(qdot)^2; 0; 0; 0];
+    omegadot(:,i) = 2*rotmat(:,:,i)*qdotdot(:,i)+2*[norm(qdot(:,i))^2; 0; 0; 0];
+end
+omegadot = omegadot(2:4,:);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Qmat
+function [qmat] = Qmat(q)
+qmat = zeros(4,4,length(q(1,:)));
+qmat(1,1,:) = q(1,:);  qmat(1,2,:) = -q(2,:); qmat(1,3,:) = -q(3,:); qmat(1,4,:) = -q(4,:);
+qmat(2,1,:) = q(2,:);  qmat(2,2,:) =  q(1,:); qmat(2,3,:) = -q(4,:); qmat(2,4,:) =  q(3,:);
+qmat(3,1,:) = q(3,:);  qmat(3,2,:) =  q(4,:); qmat(3,3,:) =  q(1,:); qmat(3,4,:) = -q(2,:);
+qmat(4,1,:) = q(4,:);  qmat(4,2,:) = -q(3,:); qmat(4,3,:) =  q(2,:); qmat(4,4,:) =  q(1,:);
+
+% qmat = [q(1), -q(2), -q(3), -q(4);
+%         q(2),  q(1), -q(4),  q(3);
+%         q(3),  q(4),  q(1), -q(2);
+%         q(4), -q(3),  q(2),  q(1)];
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% QmatT
+function [qmatT] = QmatT(q)
+qmatT = zeros(4,4,length(q(1,:)));
+qmatT(1,1,:) =  q(1,:);  qmatT(1,2,:) =  q(2,:); qmatT(1,3,:) =  q(3,:); qmatT(1,4,:) =  q(4,:);
+qmatT(2,1,:) = -q(2,:);  qmatT(2,2,:) =  q(1,:); qmatT(2,3,:) =  q(4,:); qmatT(2,4,:) = -q(3,:);
+qmatT(3,1,:) = -q(3,:);  qmatT(3,2,:) = -q(4,:); qmatT(3,3,:) =  q(1,:); qmatT(3,4,:) =  q(2,:);
+qmatT(4,1,:) = -q(4,:);  qmatT(4,2,:) =  q(3,:); qmatT(4,3,:) = -q(2,:); qmatT(4,4,:) =  q(1,:);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Qmatbar
+function [qmatbar] = Qmatbar(q)
+qmatbar = zeros(4,4,length(q(1,:)));
+qmatbar(1,1,:) = q(1,:);  qmatbar(1,2,:) = -q(2,:); qmatbar(1,3,:) = -q(3,:); qmatbar(1,4,:) = -q(4,:);
+qmatbar(2,1,:) = q(2,:);  qmatbar(2,2,:) =  q(1,:); qmatbar(2,3,:) =  q(4,:); qmatbar(2,4,:) = -q(3,:);
+qmatbar(3,1,:) = q(3,:);  qmatbar(3,2,:) = -q(4,:); qmatbar(3,3,:) =  q(1,:); qmatbar(3,4,:) =  q(2,:);
+qmatbar(4,1,:) = q(4,:);  qmatbar(4,2,:) =  q(3,:); qmatbar(4,3,:) = -q(2,:); qmatbar(4,4,:) =  q(1,:);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% QmatbarT
+function [qmatbarT] = QmatbarT(q)
+qmatbarT = zeros(4,4,length(q(1,:)));
+qmatbarT(1,1,:) =  q(1,:);  qmatbarT(1,2,:) =  q(2,:); qmatbarT(1,3,:) =  q(3,:); qmatbarT(1,4,:) =  q(4,:);
+qmatbarT(2,1,:) = -q(2,:);  qmatbarT(2,2,:) =  q(1,:); qmatbarT(2,3,:) = -q(4,:); qmatbarT(2,4,:) =  q(3,:);
+qmatbarT(3,1,:) = -q(3,:);  qmatbarT(3,2,:) =  q(4,:); qmatbarT(3,3,:) =  q(1,:); qmatbarT(3,4,:) = -q(2,:);
+qmatbarT(4,1,:) = -q(4,:);  qmatbarT(4,2,:) = -q(3,:); qmatbarT(4,3,:) =  q(2,:); qmatbarT(4,4,:) =  q(1,:);
+% qmatbar = [q(1), -q(2), -q(3), -q(4);
+%            q(2),  q(1),  q(4), -q(3);
+%            q(3), -q(4),  q(1),  q(2);
+%            q(4),  q(3), -q(2),  q(1)];
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% initSamplingData
-function [meas, acc, gyro, pos]=initSamplingData() 
+function [meas, acc, gyro, pos]=initSamplingData()
 meas.Fs = 1000;                  % [Hz] Sampling frequency
 meas.Ts = 1/meas.Fs;              % [s] Sampling period
 meas.time_factor=1;
@@ -269,7 +401,7 @@ meas.N = length(meas.t);
 meas.noiseFactor=1; %1e-4;
 meas.biasFactor=1;
 
-F_pos = 1000;                     % [Hz] Time frequency of position update in simulation 
+F_pos = 1000;                     % [Hz] Time frequency of position update in simulation
 assert(mod(meas.Fs,F_pos) == 0)
 pos.N_update = meas.Fs/F_pos;     % update position every N steps in simulation
 pos.inds_update = 1:pos.N_update:meas.N;
@@ -280,10 +412,10 @@ pos.inds_update = 1:pos.N_update:meas.N;
 
 meas.time_point_release = 40;
 
-gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500);   % Gyro continous noise 
-accNoiseSigCont = meas.noiseFactor*100/sqrt(500);     % Acc continous noise 
+gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500);   % Gyro continous noise
+accNoiseSigCont = meas.noiseFactor*100/sqrt(500);     % Acc continous noise
 
-gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg); 
+gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg);
 
 acc.noiseSigDisc = sqrt(meas.Fs)*accNoiseSigCont;     % Discrete Acc noise
 gyro.noiseSigDisc = sqrt(meas.Fs)*gyroNoiseSigCont;   % Discrete gyro noise
@@ -295,7 +427,7 @@ pos.sig = 1e-1;        % Sigma position update
 acc.Q_b_a = meas.biasFactor*0;                      % accelerometer bias value, From  Carlsson2021
 gyro.Q_b_g = meas.biasFactor*0;                     % gyro bias value, From  Carlsson2021
 acc.init_b_a = meas.noiseFactor*0.2;               % initial acceleration bias
-gyro.init_b_g = meas.noiseFactor*deg2rad(1);       % initial gyro bias
+gyro.init_b_g = meas.noiseFactor*deg2rad(1)*0;       % initial gyro bias
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% genBodyFrameAngleTrajectory
@@ -362,7 +494,7 @@ for n = 1:meas.N
 end
 %%
 
-if showfigures    
+if showfigures
     figure(3);
     eul = my_rotm2eul(truth.R_nb);
     plot(meas.t,rad2deg(eul'))
@@ -377,10 +509,10 @@ global showfigures;
 
 % sensor positions in body frame
 pos.body = [
-   0    0    0
-   0    0.1  0
-   1    0    0
-   0    0   0.1]';
+    0    0    0
+    0    0.1  0
+    1    0    0
+    0    0   0.1]';
 % i_IMU_select = [3,5,27,29];
 % i_IMU_select = sort([i_IMU_select, i_IMU_select+1])
 i_IMU_select = 1:4; % select specific IMUs from the list in case that not all IMU are used
@@ -470,7 +602,7 @@ if showfigures
     ylabel("y[m]")
     zlabel("z[m]")
     axis equal
-    
+
 
     figure(6)
     hold on
@@ -496,7 +628,7 @@ if showfigures
     ylabel("[m/s]")
     xlabel("Time [s]")
     title("True Navigation Acceleration");
-    
+
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -510,11 +642,11 @@ rot_comp = zeros(3*K,meas.N);
 trans_comp = zeros(3,meas.N);
 for n = 1:meas.N
     W = skew_sym(w_b(:,n))^2 + skew_sym(w_dot_b(:,n));
-    trans_comp(:,n) = truth.R_bn(:,:,n)*(truth.a(:,n) - settings_default.g);   % convert body center accelerations 
-                                                                               % from inertial frame to body frame
+    trans_comp(:,n) = truth.R_bn(:,:,n)*(truth.a(:,n) - settings_default.g);   % convert body center accelerations
+    % from inertial frame to body frame
     for k = 1:K
         kk = inds(:,k);
-        r_k = pos.bodyCorr(:,k);                               % sensors position 
+        r_k = pos.bodyCorr(:,k);                               % sensors position
         rot_comp(kk,n) = W*r_k;                                % rotational acceleration component
         truth.acc_u(kk,n) = trans_comp(:,n) + rot_comp(kk,n);  % total acceleration in body frame
     end
@@ -525,7 +657,7 @@ truth.gyro_u = w_b;                                            % Angular velocit
 rng("default");  % set random number generator type
 
 truth.biasGyro = gyro.init_b_g*randn(3,1)/sqrt(K);
-truth.biasAcc = acc.init_b_a*randn(3*K,1);            
+truth.biasAcc = acc.init_b_a*randn(3*K,1);
 
 A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
 b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
@@ -538,9 +670,9 @@ S_true.p = truth.pos;
 S_true.v = truth.v;
 S_true.omega_dot = w_dot_b;
 
-S_true.b_omega_dot = repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias 
-S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias 
-S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias 
+S_true.b_omega_dot = repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
+S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
+S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias
 S_true.s = trans_comp;                              % body linear acceleration in body frame
 
 acc.Q = eye(3*K)*acc.noiseSigDisc^2;
@@ -550,7 +682,7 @@ pos.Q = eye(3)*pos.sig^2;
 acc.noise = chol(acc.Q)*randn(3*K,meas.N);
 gyro.noise = chol(gyro.Q)*randn(3,meas.N);
 pos.noise = nan(3,meas.N);
-% Position update every 10 sample 
+% Position update every 10 sample
 pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
 
 % Release at 15 secs
@@ -559,19 +691,19 @@ pos.noise(:,meas.t > meas.time_point_release) = nan;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% setSimulationParameters
 function [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default)
-% Initial values 
+% Initial values
 
 rng("default");
 K = size(pos.body,2); % Number of acc triads
 
 init = struct;
 init.cov.R = eye(3)*deg2rad(1)^2;
-init.cov.p = pos.Q*2; 
+init.cov.p = pos.Q*2;
 init.cov.v = eye(3)*0.1^2;
 init.cov.omega = gyro.Q*2;
 
 init.mean.R = truth.R_nb(:,:,1)*expSO3(chol(init.cov.R)*randn(3,1));
-init.mean.p = truth.pos(:,1) + pos.noise(:,1); 
+init.mean.p = truth.pos(:,1) + pos.noise(:,1);
 init.mean.v = truth.v(:,1) + chol(init.cov.v)*randn(3,1);
 init.mean.omega = truth.gyro_u(:,1) + gyro.noise(:,1);
 
@@ -622,13 +754,13 @@ simdata.accelerometer_array_1st_order.do_gyro_updates = true;
 simdata.accelerometer_array_1st_order.do_position_updates = true;
 simdata.accelerometer_array_1st_order.do_rotation_updates = false;
 simdata.accelerometer_array_1st_order.label = "1st order accelerometer array";
-% 
+%
 sensorData = struct;
 sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
 sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
 sensorData.position_measurements = truth.pos + pos.noise;
 
-% Run filters 
+% Run filters
 run_settings = struct;
 run_settings.compute_error = true;
 run_settings.verbose = true;
@@ -852,7 +984,7 @@ o = 0; % Offset in ind
 % Depends on in the order of measurement updates in filter
 save_residuals = isfield(run_settings, "save_residuals") && run_settings.save_residuals;
 
-if isfield(sensorData, "gyro_measurements") && simdata.do_gyro_updates && save_residuals 
+if isfield(sensorData, "gyro_measurements") && simdata.do_gyro_updates && save_residuals
     mask = all(~isnan(sensorData.gyro_measurements));
     e = res.logL.residuals_normalized(mask);
     e_gyro = cellfun(@(e_i) e_i(1:3), e(2:end), 'UniformOutput', false); % Skip initial value
@@ -904,3 +1036,181 @@ end
 
 
 %%
+function cardou12axis(data)
+fbarr = data.acc;                   % acceleration measurements
+sbarr = data.origin.acc;                 % acceleration of body c.g.
+ombarr = data.omega;                % omega body
+ombdotarr = data.omegadot;          % omega dot body
+rb = squeeze(data.pos(:,:,1));   % accelerometer position
+
+sz=size(fbarr,3);
+npoints=size(rb,2)
+for j=1:sz
+    fb=squeeze(fbarr(:,:,j));
+    omb=ombarr(:,j);
+    omdotb=ombdotarr(:,j);
+    sb=sbarr(:,j);
+
+    for i = 1:npoints
+        rb_ = rb(:,i);
+        fb_ = fb(:,i);
+        test = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_)) - fb_;
+        % fb((i*3-2):(i*3)) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
+    end
+
+    acc = fb;
+    evec = [ 1, 0, 0;
+        0, 1, 0;
+        0, 0, 1;
+        1, 0, 0;
+        0, 1, 0;
+        0, 0, 1;
+        1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1 ];
+    rvec = [rb(1:3), rb(1:3), rb(1:3); rb(4:6), rb(4:6), rb(4:6); rb(7:9), rb(7:9), rb(7:9); rb(10:12), rb(10:12), rb(10:12); rb(13:15), rb(13:15), rb(13:15); rb(16:18), rb(16:18), rb(16:18)];
+
+    acc = removerows(acc, [2, 4, 6, 11, 13, 15]);
+    rvec = removerows(rvec, [2, 4, 6, 11, 13, 15]);
+    evec = removerows(evec, [2, 4, 6, 11, 13, 15]);
+    fb = removerows(fb, [2, 4, 6, 11, 13, 15]);
+    rb = removerows(rb, [2, 4, 6, 11, 13, 15]);
+
+    CPM = @(x) [0, -x(3), x(2); x(3), 0, -x(1); -x(2), x(1), 0];
+    Sigmaa = @(x) [0, -x(1), -x(1), 0, x(3), x(2); -x(2), 0, -x(2), x(3), 0, x(1); -x(3), -x(3), 0, x(2), x(1), 0];
+
+    Ap = evec;
+    R = zeros(3, 3*length(rvec));
+    F = zeros(length(rvec), 3*length(rvec));
+    Sigma = zeros(6, 3*length(rvec));
+
+    for i = 1:length(rvec)
+        F(i,3*i-2:3*i) = evec(i,:);
+        R(:,3*i-2:3*i) = CPM(rvec(i,:));
+        Sigma(:,3*i-2:3*i) = Sigmaa(rvec(i,:)).';
+    end
+
+    At = F * R.';
+    Ar = F * Sigma.';
+    A = [Ap, At, Ar];
+
+    res = lsqminnorm(A, acc);
+
+    bdotdot = res(1:3);
+    wdot = res(4:6);
+    w0sq = res(7);
+    w1sq = res(8);
+    w2sq = res(9);
+    w1w2 = res(10);
+    w0w2 = res(11);
+    w0w1 = res(12);
+
+    Ws = [-w1sq-w2sq, w0w1, w0w2; w0w1, -w0sq-w2sq, w1w2; w0w2, w1w2, -w0sq-w1sq];
+
+    wCANP = calcCANP(Ws, omb);
+    wCAD = calcCAD(Ws, omb);
+    wCAAD = calcCAAD(Ws, omb);
+    wCAAM = calcCAAM(Ws, omb);
+end
+
+function wCANP = calcCANP(Ws, wTA)
+mu2 = -(Ws(1,1)+Ws(2,2)+Ws(3,3));
+s12 = Ws(1,2)^2;
+s23 = Ws(2,3)^2;
+s31 = Ws(3,1)^2;
+s13 = Ws(1,2)*Ws(2,3);
+d12 = Ws(1,1)*Ws(2,2);
+mu1 = d12 + Ws(2,2)*Ws(3,3) + Ws(1,1)*Ws(3,3) - s12 - s23 - s31;
+mu0 = -d12*Ws(3,3) - 2*s13*Ws(3,1) + s12*Ws(3,3) + s23*Ws(1,1) + s31*Ws(2,2);
+ni2 = mu2/3;
+theta2 = ni2^2;
+q = mu1/3 - theta2;
+
+if q >= 0
+    wCANP = [0, 0, 0];
+    return;
+else
+    r = (mu1*ni2 - mu0) / 2 - ni2*theta2;
+    alpha = sqrt(-q);
+    beta = alpha^3;
+end
+
+if beta <= r
+    wCANP = [0, 0, 0];
+    return;
+else
+    lam = 2 * alpha * cos(acos(r / beta) / 3) - ni2;
+    delta = (lam + mu2) / 2;
+end
+
+if delta <= 0 || (lam * mu0) > 0
+    wCANP = [0, 0, 0];
+    return;
+else
+    wcanpnorm = sqrt(delta);
+    zeta11 = Ws(1,1) - lam;
+    zeta22 = Ws(2,2) - lam;
+    zeta33 = Ws(3,3) - lam;
+    ksi11 = zeta22 * zeta33 - s23;
+    ksi22 = zeta33 * zeta11 - s31;
+    ksi33 = zeta11 * zeta22 - s12;
+    ksi12 = Ws(2,3) * Ws(3,1) - Ws(1,2) * Ws(3,3);
+    ksi23 = Ws(1,2) * Ws(3,1) - Ws(2,3) * Ws(1,1);
+    ksi31 = s13 - Ws(3,1) * Ws(2,2);
+    adjX = [ksi11, ksi12, ksi31; ksi12, ksi22, ksi23; ksi31, ksi23, ksi33];
+    v = adjX * wTA.';
+    vunit = v / norm(v);
+    wCANP = wcanpnorm * vunit.';
+    return;
+end
+
+
+function wCAD = calcCAD(Ws, wTA)
+trWs = trace(Ws);
+if trWs < 0 && sum(abs(wTA)) > 0
+    zeta0 = Ws(1,1) - 0.5 * trWs;
+    zeta1 = Ws(2,2) - 0.5 * trWs;
+    zeta2 = Ws(3,3) - 0.5 * trWs;
+    wCAD0 = sign(wTA(1)) * heaviside(zeta0) * sqrt(zeta0);
+    wCAD1 = sign(wTA(2)) * heaviside(zeta1) * sqrt(zeta1);
+    wCAD2 = sign(wTA(3)) * heaviside(zeta2) * sqrt(zeta2);
+    wCAD = [wCAD0, wCAD1, wCAD2];
+    return;
+else
+    wCAD = [0, 0, 0];
+    return;
+end
+
+
+function wCAAD = calcCAAD(Ws, wTA)
+trWs = trace(Ws);
+if trWs < 0 && sum(abs(wTA)) > 0
+    adjWs = inv(Ws) * det(Ws);
+    wCAADnorm = sqrt(-0.5 * trWs);
+    v = adjWs * wTA.';
+    vunit = v / norm(v);
+    wCAAD = wCAADnorm * vunit.';
+    return;
+else
+    wCAAD = [0, 0, 0];
+    return;
+end
+
+function wCAAM = calcCAAM(Ws, wTA)
+trWs = trace(Ws);
+if trWs < 0
+    adjWs = inv(Ws) * det(Ws);
+    wCAAMnorm = sqrt(-0.5 * trWs);
+    Xtop = Ws;
+    Xbot = wTA * adjWs;
+    X = [Xtop; Xbot];
+    Y = [0, 0, 0, (-trWs/2)^3];
+    [Q, R] = qr(X);
+    uw = R \ (Q.' * Y.');
+    uwunit = uw / norm(uw);
+    wCAAM = wCAAMnorm * uwunit.';
+    return;
+else
+    wCAAM = [0, 0, 0];
+    return;
+end
+
+
