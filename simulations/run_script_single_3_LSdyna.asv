@@ -101,26 +101,26 @@ plotResults(meas, resSingle);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% getBodyData
-function [tim, world, body, npoints]=getBodyData(data)
+function [tim, world, body, npoints]=getBodyData(dataS)
 % cg.x=median(data.coordx(:,:), 2);
 % cg.y=cg.x*0;
 % cg.z=median(data.coordz(:,:), 2);
-indz=data.tim==0;
-data.disx(indz,:)=[];
-data.disy(indz,:)=[];
-data.disz(indz,:)=[];
-data.velx(indz,:)=[];
-data.vely(indz,:)=[];
-data.velz(indz,:)=[];
-data.accx(indz,:)=[];
-data.accy(indz,:)=[];
-data.accz(indz,:)=[];
-data.coordx(indz,:)=[];
-data.coordy(indz,:)=[];
-data.coordz(indz,:)=[];
-data.tim(indz)=[];
+indz=dataS.tim==0;
+dataS.disx(indz,:)=[];
+dataS.disy(indz,:)=[];
+dataS.disz(indz,:)=[];
+dataS.velx(indz,:)=[];
+dataS.vely(indz,:)=[];
+dataS.velz(indz,:)=[];
+dataS.accx(indz,:)=[];
+dataS.accy(indz,:)=[];
+dataS.accz(indz,:)=[];
+dataS.coordx(indz,:)=[];
+dataS.coordy(indz,:)=[];
+dataS.coordz(indz,:)=[];
+dataS.tim(indz)=[];
 downsampling = 100;
-indzd = 1:downsampling:length(data.tim);
+indzd = 1:downsampling:length(dataS.tim);
 
 timfactor = 1e-6;
 posfactor = 1e-3;
@@ -128,55 +128,69 @@ velfactor = posfactor/timfactor;
 accfactor = posfactor/timfactor/timfactor;
 
 %  Downsampling
-data.disx2=data.disx(indzd,:)'*posfactor; data.disy2=data.disy(indzd,:)'*posfactor; data.disz2=data.disz(indzd,:)'*posfactor;
-data.velx2=data.velx(indzd,:)'*velfactor; data.vely2=data.vely(indzd,:)'*velfactor; data.velz2=data.velz(indzd,:)'*velfactor;
-data.accx2=data.accx(indzd,:)'*accfactor; data.accy2=data.accy(indzd,:)'*accfactor; data.accz2=data.accz(indzd,:)'*accfactor;
-data.coordx=data.coordx(indzd,:)'*posfactor; data.coordy=data.coordy(indzd,:)'*posfactor; data.coordz=data.coordz(indzd,:)'*posfactor;
-data.tim=data.tim(indzd)*timfactor;
+data.disxS=dataS.disx(indzd,:)'*posfactor; data.disyS=dataS.disy(indzd,:)'*posfactor; data.diszS=dataS.disz(indzd,:)'*posfactor;
+data.velxS=dataS.velx(indzd,:)'*velfactor; data.velyS=dataS.vely(indzd,:)'*velfactor; data.velzS=dataS.velz(indzd,:)'*velfactor;
+data.accxS=dataS.accx(indzd,:)'*accfactor; data.accyS=dataS.accy(indzd,:)'*accfactor; data.acczS=dataS.accz(indzd,:)'*accfactor;
+data.coordx=dataS.coordx(indzd,:)'*posfactor; data.coordy=dataS.coordy(indzd,:)'*posfactor; data.coordz=dataS.coordz(indzd,:)'*posfactor;
+data.tim=dataS.tim(indzd)*timfactor;
 tim = data.tim;
 
 dt=diff(tim'); dt(end+1)=dt(end);
 
 % recalculation of velocities and accelerations
-data.velx = diff(data.coordx,1,2)./diff(data.tim');    data.vely = diff(data.coordy,1,2)./diff(data.tim)';   data.velz = diff(data.coordz,1,2)./diff(data.tim');
-data.velx = [data.velx, data.velx(:,end)];      data.vely = [data.vely, data.vely(:,end)];       data.velz = [data.velz, data.velz(:,end)];
+data.velxD = diff(data.coordx,1,2)./diff(data.tim');    data.velyD = diff(data.coordy,1,2)./diff(data.tim)';   data.velzD = diff(data.coordz,1,2)./diff(data.tim');
+data.velxD = [data.velxD, data.velxD(:,end)];      data.velyD = [data.velyD, data.velyD(:,end)];       data.velzD = [data.velzD, data.velzD(:,end)];
 
-data.accx = diff(data.velx,1,2)./diff(data.tim');    data.accy = diff(data.vely,1,2)./diff(data.tim');   data.accz = diff(data.velz,1,2)./diff(data.tim');
-data.accx = [data.accx, data.accx(:,end)];      data.accy = [data.accy, data.accy(:,end)];       data.accz = [data.accz, data.accz(:,end)];
+data.accxD = diff(data.velxD,1,2)./diff(data.tim');    data.accyD = diff(data.velyD,1,2)./diff(data.tim');   data.acczD = diff(data.velzD,1,2)./diff(data.tim');
+data.accxD = [data.accxD, data.accxD(:,end)];          data.accyD = [data.accyD, data.accyD(:,end)];         data.acczD = [data.acczD, data.acczD(:,end)];
+data.accxSD = diff(data.velxS,1,2)./diff(data.tim');  data.accySD = diff(data.velyS,1,2)./diff(data.tim'); data.acczSD = diff(data.velzS,1,2)./diff(data.tim');
+data.accxSD = [data.accxSD, data.accxSD(:,end)];       data.accySD = [data.accySD, data.accySD(:,end)];      data.acczSD = [data.acczSD, data.acczSD(:,end)];
 
-data.disx = cumsum(data.velx.*dt,2);  data.disy = cumsum(data.vely.*dt,2);   data.disz = cumsum(data.velz.*dt,2);
+data.disxD = cumsum(data.velxD.*dt,2);    data.disy = cumsum(data.velyD.*dt,2);    data.disz = cumsum(data.velzD.*dt,2);
+data.velxDC = cumsum(data.accxD.*dt,2);   data.velyDC = cumsum(data.accyD.*dt,2);   data.velzDC = cumsum(data.acczD.*dt,2);
+data.velxDC = data.velxDC+data.velxD(:,1);data.velyDC = data.velyDC+data.velyD(:,1);data.velzDC = data.velzDC+data.velzD(:,1);
+data.velxSC = cumsum(data.accxS.*dt,2); data.velySC = cumsum(data.accyS.*dt,2); data.velzSC = cumsum(data.acczS.*dt,2);
+data.velxSC = data.velxSC+data.velxD(:,1);data.velySC = data.velySC+data.velyD(:,1);data.velzSC = data.velzSC+data.velzD(:,1);
 
-plot(tim,data.disz(1,:)); hold on; plot(tim,data.disz2(1,:)); 
-legend({'original', 'downsampled'})
+indp=5;
+% plot(tim,data.velxD(indp,:)); hold on; plot(tim,data.velxS(indp,:)); plot(tim,data.velxDC(indp,:)); plot(tim,data.velxSC(indp,:)/10); 
+% plot(tim,data.velzD(indp,:)); hold on; plot(tim,data.velzS(indp,:)); plot(tim,data.velzDC(indp,:)); plot(tim,-data.velzSC(indp,:)/10); 
+% plot(tim,data.accxD(indp,:)); hold on; plot(tim,data.accxS(indp,:)); plot(tim,data.accxSD(indp,:)); plot(tim,data.accxDC(indp,:)); plot(tim,data.accxSC(indp,:)/10); 
+% plot(tim,data.acczD(indp,:)); hold on; plot(tim,data.acczS(indp,:)); plot(tim,data.acczSD(indp,:)); plot(tim,data.acczDC(indp,:)); plot(tim,-data.acczSC(indp,:)/10); 
+% plot(tim,data.accx(indp,:)); hold on; plot(tim,data.accxS(indp,:)); 
+% plot(tim,data.disy(indp,:)); hold on; plot(tim,data.disyS(indp,:)); 
+% plot(tim,data.disz(indp,:)); hold on; plot(tim,data.diszS(indp,:)); 
+% legend({'D','S','DC','SC'})
 % calculation body frame origin position and directions
-npoints = length(data.coordx(1,:));
+npoints = size(data.coordx,1);
 ntim = length(data.tim);
 
-dirX=[data.coordx(:,15)-data.coordx(:,16), data.coordy(:,15)-data.coordy(:,16), data.coordz(:,15)-data.coordz(:,16)];
-d24_16=[data.coordx(:,24)-data.coordx(:,16), data.coordy(:,24)-data.coordy(:,16), data.coordz(:,24)-data.coordz(:,16)];
+dirX=[data.coordx(15,:)-data.coordx(16,:); data.coordy(15,:)-data.coordy(16,:); data.coordz(15,:)-data.coordz(16,:)];
+d24_16=[data.coordx(24,:)-data.coordx(16,:); data.coordy(24,:)-data.coordy(16,:); data.coordz(24,:)-data.coordz(16,:)];
 for i=1:length(tim)
-    dirZ(i,:)=cross(dirX(i,:), cross(d24_16(i,:), dirX(i,:)));
-    dirY(i,:)=cross(dirX(i,:), dirZ(i,:));
-    dirX(i,:)=dirX(i,:)/norm(dirX(i,:));
-    dirY(i,:)=dirY(i,:)/norm(dirY(i,:));
-    dirZ(i,:)=dirZ(i,:)/norm(dirZ(i,:));
+    dirZ(:,i)=cross(dirX(:,i), cross(d24_16(:,i), dirX(:,i)));
+    dirY(:,i)=cross(dirX(:,i), dirZ(:,i));
+    dirX(:,i)=dirX(:,i)/norm(dirX(:,i));
+    dirY(:,i)=dirY(:,i)/norm(dirY(:,i));
+    dirZ(:,i)=dirZ(:,i)/norm(dirZ(:,i));
     disp ''
 end
 world.frame.x=dirX;
 world.frame.y=dirY;
 world.frame.z=dirZ;
 
-world.origin.pos = [data.coordx(:,15), data.coordy(:,15), data.coordz(:,15)]';
-world.origin.vel = [data.velx(:,15), data.vely(:,15), data.velz(:,15)]';
-world.origin.acc = [data.accx(:,15), data.accy(:,15), data.accz(:,15)]';
+originID=15;
+world.origin.pos = [data.coordx(originID,:); data.coordy(originID,:); data.coordz(originID,:)];
+world.origin.vel = [data.velxD(originID,:); data.velyD(originID,:); data.velzD(originID,:)];
+world.origin.acc = [data.accxSD(originID,:); data.accySD(originID,:); data.acczSD(originID,:)];
 
 world.rot_wb = zeros(3,3,ntim);
 world.rot_bw = zeros(3,3,ntim);
 world.quat_wb = zeros(4,ntim);
 world.quat_bw = zeros(4,ntim);
 for i=1:length(tim)
-    world.rot_wb(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)'];
-    world.rot_bw(:,:,i) = [dirX(i,:)', dirY(i,:)', dirZ(i,:)']';
+    world.rot_wb(:,:,i) = [dirX(:,i), dirY(:,i), dirZ(:,i)];
+    world.rot_bw(:,:,i) = [dirX(:,i), dirY(:,i), dirZ(:,i)]';
     world.quat_wb(:,i) = dcm2quat(squeeze(world.rot_wb(:,:,i)));
     world.quat_bw(:,i) = dcm2quat(squeeze(world.rot_bw(:,:,i)));
     disp ''
@@ -186,6 +200,20 @@ world.omega = angular_velocitiesMat(data.tim, world.rot_wb)';
 % world.omega_qwb2 = angular_velocities2(data.tim, world.quat_wb,'w');
 % world.omegadot_qwb = angular_accelerations(data.tim, world.quat_wb,'w');
 world.omegadot = diff(world.omega,1,2); world.omegadot(:,end+1)=world.omegadot(:,end);
+
+omegaMat = @(omega) [0, -omega(3), omega(2);
+                     omega(3), 0, -omega(1);
+                    -omega(2), omega(1), 0];
+for i=1:length(tim)-1
+    R1=world.rot_wb(:,:,i);
+    R2=world.rot_wb(:,:,i+1);
+    omegamat=omegaMat(world.omega(:,i));
+    deltaT=tim(i+1)-tim(i);
+    Rtest=R1*expm(omegamat*deltaT)-R2;
+    test=norm(Rtest,"fro")/norm(R2,"fro");
+    disp ''
+end
+
 
 % plot(data.tim, world.omega_qwb(1,:));hold on;plot(data.tim, world.omega_qwb2(1,:));plot(data.tim, world.omegaMat(1,:));
 % plot(data.tim, world.omega_qwb(2,:));hold on;plot(data.tim, world.omega_qwb2(2,:));plot(data.tim, world.omegaMat(2,:));
@@ -197,19 +225,46 @@ world.omegadot = diff(world.omega,1,2); world.omegadot(:,end+1)=world.omegadot(:
 body.omega = zeros(3, length(tim)); body.omegadot = zeros(3,length(tim));
 body.pos = zeros(3,npoints, length(tim)); body.vel = zeros(3,npoints, length(tim)); body.acc = zeros(3,npoints, length(tim));
 body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
+                                          body.origin.velS = zeros(3, length(tim));  body.origin.accS = zeros(3, length(tim));
 world.pos = zeros(3,npoints, length(tim));
+testacc=zeros(3, length(tim));
 for i=1:length(tim)
-    rot_bw = squeeze(world.rot_wb(:,:,i));
-    world.pos(:,:,i)=[data.coordx(i,:)-world.origin.pos(1,1);
-        data.coordy(i,:)-world.origin.pos(1,2);
-        data.coordz(i,:)-world.origin.pos(1,3)];
-    world.vel(:,:,i)=[data.velx(i,:); data.vely(i,:); data.velz(i,:)];
-    world.acc(:,:,i)=[data.accx(i,:); data.accy(i,:); data.accz(i,:)];
+    rot_bw = squeeze(world.rot_bw(:,:,i));
+    world.pos(:,:,i)=[data.coordx(:,i)-world.origin.pos(1,i),...
+                      data.coordy(:,i)-world.origin.pos(2,i),...
+                      data.coordz(:,i)-world.origin.pos(3,i)]';
+    world.vel(:,:,i)=[data.velxD(:,i), data.velyD(:,i), data.velzD(:,i)]';
+    world.acc(:,:,i)=[data.accxSD(:,i), data.accySD(:,i), data.acczSD(:,i)]';
 
-    body.omega(:,i) = rot_bw*world.omega(:,i);              body.omegadot(:,i) = rot_bw*world.omegadot(:,i);
-    body.pos(:,:,i) = rot_bw*world.pos(:,:,i);              body.vel(:,:,i) = rot_bw*world.vel(:,:,i);              body.acc(:,:,i) = rot_bw*world.acc(:,:,i);
-    body.origin.pos(:,i) = rot_bw*world.origin.pos(:,i);    body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
+    body.omega(:,i) = rot_bw*world.omega(:,i);              
+    body.omegadot(:,i) = rot_bw*world.omegadot(:,i);
+    body.pos(:,:,i) = rot_bw*world.pos(:,:,i);              
+    body.vel(:,:,i) = rot_bw*world.vel(:,:,i);              
+    body.acc(:,:,i) = rot_bw*world.acc(:,:,i);
+    body.origin.pos(:,i) = rot_bw*world.origin.pos(:,i);    
+    body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    
+    body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
+
+    ind=10;
+    frame=body;
+    rb_ = frame.pos(:,ind,i);
+    omb = frame.omega(:,i);
+    omdotb = frame.omegadot(:,i);
+    sb = frame.origin.acc(:,i);
+    vb = frame.origin.vel(:,i);
+    fb_ = frame.acc(:,ind,i);
+    testvel(:,i) = vb + cross(omb, rb_);
+    testacc(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
+    disp ''
 end
+plot(tim,testvel(1,:)); hold on; plot(tim,squeeze(body.vel(1,ind,:))); 
+plot(tim,testvel(3,:)); hold on; plot(tim,squeeze(body.vel(3,ind,:))); 
+% plot(tim,testvel(2,:)); hold on; plot(tim,squeeze(body.vel(2,ind,:)));
+
+plot(tim,testacc(1,:)); hold on; plot(tim,squeeze(body.acc(1,ind,:))); 
+plot(tim,testacc(3,:)); hold on; plot(tim,squeeze(body.acc(3,ind,:))); 
+% plot(tim,testacc(2,:)); hold on; plot(tim,squeeze(body.acc(2,ind,:))); 
+
 dpos = diff(world.pos,1,3);  dpos(:,:,end+1)=dpos(:,:,end);
 ddpos = diff(dpos,1,3);  ddpos(:,:,end+1)=ddpos(:,:,end);
 for i=1:length(tim)
