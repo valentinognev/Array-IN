@@ -25,7 +25,8 @@ mkdir(pathData);
 %%%% START INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if 1
-    data=load('../../Data/lssimDatad10.mat');
+    % data=load('../../Data/lssimDatad10.mat');
+    data=load('../../Data/genData.mat');
     [tim, world, body, npoints]=getBodyData(data);
     cardou12axis(body);
     
@@ -105,7 +106,7 @@ function [tim, world, body, npoints]=getBodyData(dataS)
 % cg.x=median(data.coordx(:,:), 2);
 % cg.y=cg.x*0;
 % cg.z=median(data.coordz(:,:), 2);
-indz=dataS.tim==0;
+indz=dataS.tim==0;indz(1)=false;
 dataS.disx(indz,:)=[];
 dataS.disy(indz,:)=[];
 dataS.disz(indz,:)=[];
@@ -119,11 +120,11 @@ dataS.coordx(indz,:)=[];
 dataS.coordy(indz,:)=[];
 dataS.coordz(indz,:)=[];
 dataS.tim(indz)=[];
-downsampling = 1000;
+downsampling = 1;%1000;
 indzd = 1:downsampling:length(dataS.tim);
 
-timfactor = 1e-6;
-posfactor = 1e-3;
+timfactor = 1;%1e-6;
+posfactor = 1;%1e-3;
 velfactor = posfactor/timfactor;
 accfactor = posfactor/timfactor/timfactor;
 
@@ -165,11 +166,18 @@ indp=5;
 npoints = size(data.coordx,1);
 ntim = length(data.tim);
 
-dirX=[data.coordx(15,:)-data.coordx(16,:); data.coordy(15,:)-data.coordy(16,:); data.coordz(15,:)-data.coordz(16,:)];
-d24_16=[data.coordx(24,:)-data.coordx(16,:); data.coordy(24,:)-data.coordy(16,:); data.coordz(24,:)-data.coordz(16,:)];
+originNID = 1;%16;
+xdirNID = 6;%15;
+zdirNID = 2;%24;
+dirX=[data.coordx(xdirNID,:)-data.coordx(originNID,:); 
+      data.coordy(xdirNID,:)-data.coordy(originNID,:); 
+      data.coordz(xdirNID,:)-data.coordz(originNID,:)];
+d24_16=[data.coordx(zdirNID,:)-data.coordx(originNID,:); 
+        data.coordy(zdirNID,:)-data.coordy(originNID,:); 
+        data.coordz(zdirNID,:)-data.coordz(originNID,:)];
 for i=1:length(tim)
     dirZ(:,i)=cross(dirX(:,i), cross(d24_16(:,i), dirX(:,i)));
-    dirY(:,i)=cross(dirX(:,i), dirZ(:,i));
+    dirY(:,i)=cross(dirZ(:,i), dirX(:,i));
     dirX(:,i)=dirX(:,i)/norm(dirX(:,i));
     dirY(:,i)=dirY(:,i)/norm(dirY(:,i));
     dirZ(:,i)=dirZ(:,i)/norm(dirZ(:,i));
@@ -179,10 +187,9 @@ world.frame.x=dirX;
 world.frame.y=dirY;
 world.frame.z=dirZ;
 
-originID=15;
-world.origin.pos = [data.coordx(originID,:); data.coordy(originID,:); data.coordz(originID,:)];
-world.origin.vel = [data.velxD(originID,:); data.velyD(originID,:); data.velzD(originID,:)];
-world.origin.acc = [data.accxSD(originID,:); data.accySD(originID,:); data.acczSD(originID,:)];
+world.origin.pos = [data.coordx(originNID,:); data.coordy(originNID,:); data.coordz(originNID,:)];
+world.origin.vel = [data.velxD(originNID,:); data.velyD(originNID,:); data.velzD(originNID,:)];
+world.origin.acc = [data.accxSD(originNID,:); data.accySD(originNID,:); data.acczSD(originNID,:)];
 
 world.rot_wb = zeros(3,3,ntim);
 world.rot_bw = zeros(3,3,ntim);
@@ -196,9 +203,9 @@ for i=1:length(tim)
     disp ''
 end
 world.omega = angular_velocitiesMat(data.tim, world.rot_wb)';
-% world.omega_qwb = angular_velocities(data.tim, world.quat_wb);
-% world.omega_qwb2 = angular_velocities2(data.tim, world.quat_wb,'w');
-% world.omegadot_qwb = angular_accelerations(data.tim, world.quat_wb,'w');
+world.omega_qwb = angular_velocities(data.tim, world.quat_wb);
+world.omega_qwb2 = angular_velocities2(data.tim, world.quat_wb,'w');
+world.omegadot_qwb = angular_accelerations(data.tim, world.quat_wb,'w');
 world.omegadot = diff(world.omega,1,2); world.omegadot(:,end+1)=world.omegadot(:,end);
 
 omegaMat = @(omega) [0, -omega(3), omega(2);
@@ -320,6 +327,9 @@ disp ''
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% angular_velocitiesMat   -
 function [omegaRot] = angular_velocitiesMat(tim, RHist)
+skew = @(omega) [0, -omega(3), omega(2);
+                 omega(3), 0, -omega(1);
+                -omega(2), omega(1), 0];
 
 tlen=length(tim);
 dt=zeros(tlen,1);
@@ -331,7 +341,9 @@ omegaRot = zeros(tlen,3);
 for i=1:tlen
     omegaRot_n = squeeze(RHist(:,:,i))'*squeeze(dRHist(:,:,i))/dt(i);
     omegaRot_n = (omegaRot_n-omegaRot_n')/2;
-    omegaRot(i,:) = [omegaRot_n(2,3), omegaRot_n(3,1), omegaRot_n(1,2)];
+    omegaRot(i,:) = [omegaRot_n(3,2), omegaRot_n(1,3), omegaRot_n(2,1)];
+    % 
+    % test = expm(skew(omegaRot(i,:))*dt(i))*RHist(:,:,i);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
