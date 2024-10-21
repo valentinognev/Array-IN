@@ -211,10 +211,10 @@ body.omega = angular_velocitiesMat(data.tim, world.rot_wb)';
 body.omega_qwb = angular_velocities(data.tim, world.quat_wb);
 body.omega_qwb2 = angular_velocities2(data.tim, world.quat_wb,'w');
 body.omegadot_qwb = angular_accelerations(data.tim, world.quat_wb,'w');
-body.omegadot = diff(body.omega,1,2); body.omegadot(:,end+1) = body.omegadot(:,end);
-body.omegadot = body.omegadot./([1;1;1]*dt);
+body.omegadot = diff(body.omega,1,2); body.omegadot(:,end+1)=body.omegadot(:,end);
+body.omegadot=body.omegadot./([1;1;1]*dt);
 
-for i=1:ntim
+for i=1:(ntim-1)
     world.omega(:,i) = world.rot_wb(:,:,i)*body.omega(:,i);
     world.omegadot(:,i) = world.rot_wb(:,:,i)*body.omegadot(:,i); 
 end
@@ -226,9 +226,9 @@ skewMat = @(omega) [0, -omega(3), omega(2);
 for i=1:(ntim-1)
     R1=world.rot_wb(:,:,i);
     R2=world.rot_wb(:,:,i+1);
-    omegaWmat=skewMat(world.omega(:,i));
+    omegaBmat=skewMat(world.omegaB(:,i));
     deltaT=tim(i+1)-tim(i);
-    Rtest=expm(omegaWmat*deltaT)*R1-R2;
+    Rtest=expm(omegaBmat*deltaT)*R1-R2;
     test(i)=norm(Rtest,"fro")/norm(R2,"fro")*100;
     disp ''
 end
@@ -241,9 +241,10 @@ end
 % plot(data.tim, world.omegadot_qwb(2,:));plot(data.tim, world.omegadot_qwb(3,:));
 % plot(data.tim, world.omegadot_2(2,:));plot(data.tim, world.omegadot_2(3,:));
 
+body.omega = zeros(3, length(tim)); body.omegadot = zeros(3,length(tim));
 body.pos = zeros(3,npoints, length(tim)); body.vel = zeros(3,npoints, length(tim)); body.acc = zeros(3,npoints, length(tim));
 body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
-                                          body.origin.velS = zeros(3, length(tim)); body.origin.accS = zeros(3, length(tim));
+                                          body.origin.velS = zeros(3, length(tim));  body.origin.accS = zeros(3, length(tim));
 world.pos = zeros(3,npoints, length(tim));
 testacc=zeros(3, length(tim));
 for i=1:ntim
@@ -254,6 +255,8 @@ for i=1:ntim
     world.vel(:,:,i)=[data.velxD(:,i), data.velyD(:,i), data.velzD(:,i)]';
     world.acc(:,:,i)=[data.accxSD(:,i), data.accySD(:,i), data.acczSD(:,i)]';
 
+    body.omega(:,i) = rot_bw*world.omega(:,i);              
+    body.omegadot(:,i) = rot_bw*world.omegadot(:,i);
     body.pos(:,:,i) = rot_bw*world.pos(:,:,i);              
     body.vel(:,:,i) = rot_bw*world.vel(:,:,i);              
     body.acc(:,:,i) = rot_bw*world.acc(:,:,i);
@@ -262,7 +265,7 @@ for i=1:ntim
     body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
 
     ind=10;
-    frame=world;
+    frame=body;
     rb_ = frame.pos(:,ind,i);
     omb = frame.omega(:,i);
     omdotb = frame.omegadot(:,i);
