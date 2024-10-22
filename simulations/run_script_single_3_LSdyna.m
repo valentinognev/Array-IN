@@ -220,18 +220,18 @@ for i=1:ntim
 end
 
 % Test of omegaB
-skewMat = @(omega) [0, -omega(3), omega(2);
-                     omega(3), 0, -omega(1);
-                    -omega(2), omega(1), 0];
-for i=1:(ntim-1)
-    R1=world.rot_wb(:,:,i);
-    R2=world.rot_wb(:,:,i+1);
-    omegaWmat=skewMat(world.omega(:,i));
-    deltaT=tim(i+1)-tim(i);
-    Rtest=expm(omegaWmat*deltaT)*R1-R2;
-    test(i)=norm(Rtest,"fro")/norm(R2,"fro")*100;
-    disp ''
-end
+% skewMat = @(omega) [0, -omega(3), omega(2);
+%                      omega(3), 0, -omega(1);
+%                     -omega(2), omega(1), 0];
+% for i=1:(ntim-1)
+%     R1=world.rot_wb(:,:,i);
+%     R2=world.rot_wb(:,:,i+1);
+%     omegaWmat=skewMat(world.omega(:,i));
+%     deltaT=tim(i+1)-tim(i);
+%     Rtest=expm(omegaWmat*deltaT)*R1-R2;
+%     test(i)=norm(Rtest,"fro")/norm(R2,"fro")*100;
+%     disp ''
+% end
 
 
 % plot(data.tim, world.omega_qwb(1,:));hold on;plot(data.tim, world.omega_qwb2(1,:));plot(data.tim, world.omegaMat(1,:));
@@ -261,25 +261,25 @@ for i=1:ntim
     body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    
     body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
 
-    ind=10;
-    frame=world;
-    rb_ = frame.pos(:,ind,i);
-    omb = frame.omega(:,i);
-    omdotb = frame.omegadot(:,i);
-    sb = frame.origin.acc(:,i);
-    vb = frame.origin.vel(:,i);
-    fb_ = frame.acc(:,ind,i);
-    testvel(:,i) = vb + cross(omb, rb_);
-    testacc(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
+    % ind=10;
+    % frame=world;
+    % rb_ = frame.pos(:,ind,i);
+    % omb = frame.omega(:,i);
+    % omdotb = frame.omegadot(:,i);
+    % sb = frame.origin.acc(:,i);
+    % vb = frame.origin.vel(:,i);
+    % fb_ = frame.acc(:,ind,i);
+    % testvel(:,i) = vb + cross(omb, rb_);
+    % testacc(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
     disp ''
 end
-plot(tim,testvel(1,:)); hold on; plot(tim,squeeze(body.vel(1,ind,:))); 
-plot(tim,testvel(3,:)); hold on; plot(tim,squeeze(body.vel(3,ind,:))); 
-% plot(tim,testvel(2,:)); hold on; plot(tim,squeeze(body.vel(2,ind,:)));
+% plot(tim,testvel(1,:)); hold on; plot(tim,squeeze(frame.vel(1,ind,:))); 
+% plot(tim,testvel(3,:)); hold on; plot(tim,squeeze(frame.vel(3,ind,:))); 
+% plot(tim,testvel(2,:)); hold on; plot(tim,squeeze(frame.vel(2,ind,:)));
 
-plot(tim,testacc(1,:)); hold on; plot(tim,squeeze(body.acc(1,ind,:))); 
-plot(tim,testacc(3,:)); hold on; plot(tim,squeeze(body.acc(3,ind,:))); 
-% plot(tim,testacc(2,:)); hold on; plot(tim,squeeze(body.acc(2,ind,:))); 
+% plot(tim,testacc(1,:)); hold on; plot(tim,squeeze(frame.acc(1,ind,:))); 
+% plot(tim,testacc(3,:)); hold on; plot(tim,squeeze(frame.acc(3,ind,:))); 
+% plot(tim,testacc(2,:)); hold on; plot(tim,squeeze(frame.acc(2,ind,:))); 
 
 dpos = diff(world.pos,1,3);  dpos(:,:,end+1)=dpos(:,:,end);
 ddpos = diff(dpos,1,3);  ddpos(:,:,end+1)=ddpos(:,:,end);
@@ -1110,8 +1110,8 @@ for idx = 1:length(fields)
     err.std.(fields{idx}) = S_tot.filt.std.(fields{idx});
 end
 
-
-%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%% cardou12axis
 function cardou12axis(data)
 fbarr = data.acc;                   % acceleration measurements
 sbarr = data.origin.acc;                 % acceleration of body c.g.
@@ -1120,48 +1120,50 @@ ombdotarr = data.omegadot;          % omega dot body
 rb = squeeze(data.pos(:,:,1));   % accelerometer position
 
 sz=size(fbarr,3);
-npoints=size(rb,2)
+npoints=size(rb,2);
+omb=ombarr(:,1);
 for j=1:sz
     fb=squeeze(fbarr(:,:,j));
-    omb=ombarr(:,j);
     omdotb=ombdotarr(:,j);
     sb=sbarr(:,j);
 
     for i = 1:npoints
         rb_ = rb(:,i);
         fb_ = fb(:,i);
-        test = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_)) - fb_;
+        test(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_)) - fb_;
+        percent(i)=norm(test(:,i))/norm(fb_)*100;
         % fb((i*3-2):(i*3)) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
     end
 
-    acc = fb;
-    evec = [ 1, 0, 0;
-        0, 1, 0;
-        0, 0, 1;
-        1, 0, 0;
-        0, 1, 0;
-        0, 0, 1;
-        1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1; 1, 0, 0; 0, 1, 0; 0, 0, 1 ];
-    rvec = [rb(1:3), rb(1:3), rb(1:3); rb(4:6), rb(4:6), rb(4:6); rb(7:9), rb(7:9), rb(7:9); rb(10:12), rb(10:12), rb(10:12); rb(13:15), rb(13:15), rb(13:15); rb(16:18), rb(16:18), rb(16:18)];
+    acc = fb(:);
+    evecbase = [ 1, 0, 0;
+                 0, 1, 0;
+                 0, 0, 1];
+    evec = repmat(evecbase,npoints,1);
 
-    acc = removerows(acc, [2, 4, 6, 11, 13, 15]);
-    rvec = removerows(rvec, [2, 4, 6, 11, 13, 15]);
-    evec = removerows(evec, [2, 4, 6, 11, 13, 15]);
-    fb = removerows(fb, [2, 4, 6, 11, 13, 15]);
-    rb = removerows(rb, [2, 4, 6, 11, 13, 15]);
+    mdofs = 3*npoints;
+    rvec=zeros(3,mdofs);
+    for i=1:npoints
+        mat=[rb(1:3,i), rb(1:3,i), rb(1:3,i)];
+        rvec(:,(3*i-2):(3*i))=mat;
+    end
 
     CPM = @(x) [0, -x(3), x(2); x(3), 0, -x(1); -x(2), x(1), 0];
     Sigmaa = @(x) [0, -x(1), -x(1), 0, x(3), x(2); -x(2), 0, -x(2), x(3), 0, x(1); -x(3), -x(3), 0, x(2), x(1), 0];
 
     Ap = evec;
-    R = zeros(3, 3*length(rvec));
-    F = zeros(length(rvec), 3*length(rvec));
-    Sigma = zeros(6, 3*length(rvec));
+    R = zeros(3, 3*mdofs);
+    F = zeros(mdofs, 3*mdofs);
+    Sigma = zeros(6, 3*mdofs);
 
-    for i = 1:length(rvec)
-        F(i,3*i-2:3*i) = evec(i,:);
-        R(:,3*i-2:3*i) = CPM(rvec(i,:));
-        Sigma(:,3*i-2:3*i) = Sigmaa(rvec(i,:)).';
+    for i = 1:mdofs
+        try
+        F(i,(3*i-2):(3*i)) = evec(i,:);
+        R(:,(3*i-2):(3*i)) = CPM(rvec(:,i));
+        Sigma(:,(3*i-2):(3*i)) = Sigmaa(rvec(:,i)).';
+        catch
+            disp ''
+        end
     end
 
     At = F * R.';
@@ -1185,9 +1187,17 @@ for j=1:sz
     wCAD = calcCAD(Ws, omb);
     wCAAD = calcCAAD(Ws, omb);
     wCAAM = calcCAAM(Ws, omb);
+    omb=wCANP';
 end
 
+disp ''
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%% calcCANP
 function wCANP = calcCANP(Ws, wTA)
+if size(wTA,2)==3
+    wTA=wTA';
+end
 mu2 = -(Ws(1,1)+Ws(2,2)+Ws(3,3));
 s12 = Ws(1,2)^2;
 s23 = Ws(2,3)^2;
@@ -1232,13 +1242,14 @@ else
     ksi23 = Ws(1,2) * Ws(3,1) - Ws(2,3) * Ws(1,1);
     ksi31 = s13 - Ws(3,1) * Ws(2,2);
     adjX = [ksi11, ksi12, ksi31; ksi12, ksi22, ksi23; ksi31, ksi23, ksi33];
-    v = adjX * wTA.';
+    v = adjX * wTA;
     vunit = v / norm(v);
     wCANP = wcanpnorm * vunit.';
     return;
 end
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%% calcCAD
 function wCAD = calcCAD(Ws, wTA)
 trWs = trace(Ws);
 if trWs < 0 && sum(abs(wTA)) > 0
@@ -1255,13 +1266,17 @@ else
     return;
 end
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%% calcCAAD
 function wCAAD = calcCAAD(Ws, wTA)
+if size(wTA,2)==3
+    wTA=wTA';
+end
 trWs = trace(Ws);
 if trWs < 0 && sum(abs(wTA)) > 0
     adjWs = inv(Ws) * det(Ws);
     wCAADnorm = sqrt(-0.5 * trWs);
-    v = adjWs * wTA.';
+    v = adjWs * wTA;
     vunit = v / norm(v);
     wCAAD = wCAADnorm * vunit.';
     return;
@@ -1270,7 +1285,12 @@ else
     return;
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%% calcCAAM
 function wCAAM = calcCAAM(Ws, wTA)
+if size(wTA,1)==3
+    wTA=wTA';
+end
 trWs = trace(Ws);
 if trWs < 0
     adjWs = inv(Ws) * det(Ws);
