@@ -198,22 +198,16 @@ classdef D_LG_EKF_Gyro_2nd_v4
                 w_b_g = zeros(3,1);   
             end            
 
-           
+            y_g = y(obj.inds_y_g);
+            omega = y_g - b_g - w_g;
+            
             if ~isempty(obj.inds_y_a)
-                if 0
-                    y_g = y(obj.inds_y_g);
-                    omega = y_g - b_g - w_g;
-                    y_a = y(obj.inds_y_a);
-                    h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)
-                    alpha = obj.A*(y_a - h) + w_alpha;
-                else
-                    omega = x(1:3);
-                    [bdotdot, omega_dot_b, omega]=cardou12(y(4:end), omega, obj.r, obj.T);
-                    alpha(1:3,1) = omega_dot_b;
-                    alpha(4:6,1) = bdotdot;
-                    alpha = alpha + w_alpha;
-                end
+                y_a = y(obj.inds_y_a);
+                h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)            
+                alpha = obj.A*(y_a - h) + w_alpha;
  
+
+                
                 omega_dot = alpha(1:3); % Angular acceleration            
                 s = alpha(4:6) + b_s;   % Specific force
                 v_dot = obj.g + R*s;    % Navigation acceleration
@@ -376,7 +370,6 @@ classdef D_LG_EKF_Gyro_2nd_v4
             res.v_dot = v_dot;
             res.omega_dot = omega_dot;
             res.s = s;
-            res.omega = omega;
         end
         function d_h_d_omega = compute_d_h_d_omega(obj, w)
 

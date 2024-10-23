@@ -233,6 +233,7 @@
     end
     
     w = zeros(Nw, 1); % Just set to zero
+    resProp=struct;
     for n = 2:Nt
 % State vector 
 % R;          % Rotation between body frame and navigation frame
@@ -263,6 +264,9 @@
                 %     x(16:18)    % bias in gyro measurement
                 % u_n - sensor acceleration data in body frame
                 % w - white nosie estimation, for: omega_dot, acc, bias of omega_dot, bias of acc gyro
+        if isfield(resProp,"omega")
+            x_maj(1:3)=resProp.omega;
+        end
         resProp = model.propagate(R_maj, x_maj, u_n, w);
         Omega_n = resProp.Omega;
         dOmega_de_n = resProp.dOmega_de;

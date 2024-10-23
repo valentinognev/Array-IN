@@ -27,13 +27,13 @@ classdef D_LG_EKF_Array_v4_alpha
         A
         A_omega_dot
         A_s
-        r
+        r                       % accelerometer sensor position on body coordinates
         T2_R
         constant_b_alpha = []
         Q
-        R_pos
-        R_rot
-        R_gyro
+        R_pos                   % Covariance matrix for position estimation
+        R_rot                   
+        R_gyro                  % Covariance matrix for gyro estimation
     end    
     methods
         function obj = D_LG_EKF_Array_v4_alpha(settings)
@@ -155,8 +155,8 @@ classdef D_LG_EKF_Array_v4_alpha
         function Q = get_Q(obj)
             Q = obj.Q;         
         end
-        function res = propagate(obj, R, x, y, w)
-            % R - Rnb - Lie group rotation matrix - Rotation between body frame to navigation frame
+        function res = propagate(obj, Rnb, x, y, w)
+            % Rnb - Lie group rotation matrix - Rotation between body frame to navigation frame
             % x - position
             %     x(1:3);     % angular velocity in body frame
             %     x(4:6);     % position in navigation frame
@@ -203,17 +203,22 @@ classdef D_LG_EKF_Array_v4_alpha
                 w_b_g = zeros(3,1);   
             end            
                         
-            y_a = y;
-
-            h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)
-            
-            alpha = obj.A*(y_a - h) + b_alpha + w_alpha;
- 
+            if 0
+                y_a = y;
+                h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)
+                alpha = obj.A*(y_a - h) + b_alpha + w_alpha;
+            else
+                omegaPrev = omega;
+                [bdotdot, omega_dot_b, omegaNew]=cardou12(y, omega, obj.r, obj.T);
+                alpha(1:3,1) = omega_dot_b;
+                alpha(4:6,1) = bdotdot;
+                alpha = alpha + b_alpha + w_alpha;
+            end
             omega_dot = alpha(1:3); % Angular acceleration in body coordinates           
             s = alpha(4:6);         % Specific force (acceleration) in body coordinates       
 
             % Navigation acceleration
-            v_dot = obj.g + R*s;    % Acceleration in navigation coordinates 
+            v_dot = obj.g + Rnb*s;    % Acceleration in navigation coordinates 
   
             Omega = zeros(obj.Nx,1);
             % R
@@ -244,8 +249,8 @@ classdef D_LG_EKF_Array_v4_alpha
             
             d_omega_dot_d_omega = -obj.A_omega_dot*d_h_d_omega;
             
-            d_v_dot_d_R = -R*HatSO3(s);
-            d_v_dot_d_omega = -R*obj.A_s*d_h_d_omega;
+            d_v_dot_d_R = -Rnb*HatSO3(s);
+            d_v_dot_d_omega = -Rnb*obj.A_s*d_h_d_omega;
             
             
             % Fill Jacobian
@@ -284,7 +289,7 @@ classdef D_LG_EKF_Array_v4_alpha
                     dOmega_de(obj.inds_p,obj.inds_v) = eye(3)*obj.T;                      % v
                 end
                 if ~isempty(obj.inds_b_alpha)
-                    d_v_dot_d_b_alpha = [zeros(3) R];
+                    d_v_dot_d_b_alpha = [zeros(3) Rnb];
                     dOmega_de(obj.inds_p,obj.inds_b_alpha) = d_v_dot_d_b_alpha*obj.T^2/2;            % b_alpha
                 end
             end
@@ -306,7 +311,7 @@ classdef D_LG_EKF_Array_v4_alpha
             dOmega_dw = zeros(obj.Nx, obj.Nw);
                         
             d_omega_dot_d_w_alpha = [eye(3) zeros(3)];
-            d_v_dot_d_w_alpha = [zeros(3) R];
+            d_v_dot_d_w_alpha = [zeros(3) Rnb];
             
             % -----------------------------------------------------------------------------
             % R equation

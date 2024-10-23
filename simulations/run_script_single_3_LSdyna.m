@@ -25,10 +25,14 @@ mkdir(pathData);
 %%%% START INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if 1
-    % data=load('../../Data/lssimDatad10.mat');
-    data=load('../../Data/genData.mat');
-    [tim, world, body, npoints]=getBodyData(data);
-    cardou12axis(body);
+    if 0
+        dataParams.timfactor = 1e-6;    dataParams.posfactor = 1e-3;    dataParams.downsamping = 100;
+        data=load('../../Data/lssimDatad10.mat');
+    else
+        dataParams.timfactor = 1;    dataParams.posfactor = 1;    dataParams.downsamping = 1;
+        data=load('../../Data/genData.mat');
+    end
+    [tim, world, body, npoints]=getBodyData(data,dataParams);
     
     truth.pos = world.origin.pos;
     truth.v = world.origin.vel;
@@ -87,22 +91,33 @@ if 1
 
     settings_default.r = pos.bodyCorr;
     settings_default.T = meas.Ts;
+    settings_default.g = settings_default.g * 0;
 
-    figure(233);
-    plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
-    figure(234);
-    plot(tim, squeeze(body.omega(1,1,:))); hold on; plot(tim, squeeze(body.omega(2,1,:))); plot(tim, squeeze(body.omega(3,1,:)));
+    % figure(233);
+    % plot(tim, squeeze(body.acc(:,17,:))); 
+    % figure(234);
+    % plot(tim, body.omega); 
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% END INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default);
 [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b);
-plotResults(meas, resSingle);
+plotResults(meas, resSingle, settings_default.r);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% getBodyData
-function [tim, world, body, npoints]=getBodyData(dataS)
+function [tim, world, body, npoints]=getBodyData(dataS, dataParams)
+if nargin<2
+    timfactor = 1;%1e-6;
+    posfactor = 1;%1e-3;
+    downsampling = 1;%1000;
+else
+    timfactor = dataParams.timfactor;
+    posfactor = dataParams.posfactor;
+    downsampling = dataParams.downsamping;
+end
+
 % cg.x=median(data.coordx(:,:), 2);
 % cg.y=cg.x*0;
 % cg.z=median(data.coordz(:,:), 2);
@@ -120,11 +135,8 @@ dataS.coordx(indz,:)=[];
 dataS.coordy(indz,:)=[];
 dataS.coordz(indz,:)=[];
 dataS.tim(indz)=[];
-downsampling = 1;%1000;
 indzd = 1:downsampling:length(dataS.tim);
 
-timfactor = 1;%1e-6;
-posfactor = 1;%1e-3;
 velfactor = posfactor/timfactor;
 accfactor = posfactor/timfactor/timfactor;
 
@@ -185,6 +197,7 @@ for i=1:ntim
     dirZ(:,i)=dirZ(:,i)/norm(dirZ(:,i));
     disp ''
 end
+world.time=data.tim;
 world.frame.x=dirX;  % direction of body frame X coordinate in world frame
 world.frame.y=dirY;  % direction of body frame Y coordinate in world frame
 world.frame.z=dirZ;  % direction of body frame Z coordinate in world frame
@@ -240,7 +253,7 @@ end
 %
 % plot(data.tim, world.omegadot_qwb(2,:));plot(data.tim, world.omegadot_qwb(3,:));
 % plot(data.tim, world.omegadot_2(2,:));plot(data.tim, world.omegadot_2(3,:));
-
+body.time=data.tim;
 body.pos = zeros(3,npoints, length(tim)); body.vel = zeros(3,npoints, length(tim)); body.acc = zeros(3,npoints, length(tim));
 body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
                                           body.origin.velS = zeros(3, length(tim)); body.origin.accS = zeros(3, length(tim));
@@ -489,7 +502,7 @@ pos.inds_update = 1:pos.N_update:meas.N;
 meas.time_point_release = 40;
 
 gyroNoiseSigContDeg = meas.noiseFactor*1/sqrt(500);   % Gyro continous noise
-accNoiseSigCont = meas.noiseFactor*100/sqrt(500);     % Acc continous noise
+accNoiseSigCont = meas.noiseFactor*100/sqrt(500)*(1e-8);     % Acc continous noise
 
 gyroNoiseSigCont = deg2rad(gyroNoiseSigContDeg);
 
@@ -502,7 +515,7 @@ pos.sig = 1e-1;        % Sigma position update
 % estimate a constant bias
 acc.Q_b_a = meas.biasFactor*0;                      % accelerometer bias value, From  Carlsson2021
 gyro.Q_b_g = meas.biasFactor*0;                     % gyro bias value, From  Carlsson2021
-acc.init_b_a = meas.noiseFactor*0.2;               % initial acceleration bias
+acc.init_b_a = meas.noiseFactor*0.2*1e-8;               % initial acceleration bias
 gyro.init_b_g = meas.noiseFactor*deg2rad(1)*0;       % initial gyro bias
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -790,7 +803,7 @@ init.mean.b_g = zeros(3,1);
 init.cov.b_g = eye(3)*gyro.init_b_g^2/K*3;
 
 % Run Filters
-
+ 
 % error("asd")
 % Models
 
@@ -830,7 +843,45 @@ simdata.accelerometer_array_1st_order.do_gyro_updates = true;
 simdata.accelerometer_array_1st_order.do_position_updates = true;
 simdata.accelerometer_array_1st_order.do_rotation_updates = false;
 simdata.accelerometer_array_1st_order.label = "1st order accelerometer array";
-%
+
+simdata.gyroscope_2nd_order = settings_default;
+simdata.gyroscope_2nd_order.propagate_bias_gyro = true;
+simdata.gyroscope_2nd_order.input_accelerometers = true;
+simdata.gyroscope_2nd_order.propagate_position = true;
+simdata.gyroscope_2nd_order.propagate_velocity = true;
+simdata.gyroscope_2nd_order.propagate_bias_s = true;
+simdata.gyroscope_2nd_order.set_T2_R_zero = false;
+simdata.gyroscope_2nd_order.get_model = @D_LG_EKF_Gyro_2nd_v4;
+simdata.gyroscope_2nd_order.r = pos.bodyCorr;
+simdata.gyroscope_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.gyroscope_2nd_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
+simdata.gyroscope_2nd_order.R_pos = pos.sig^2*eye(3);
+simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
+simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
+simdata.gyroscope_2nd_order.do_gyro_updates = false;
+simdata.gyroscope_2nd_order.do_position_updates = true;
+simdata.gyroscope_2nd_order.do_rotation_updates = false;
+simdata.gyroscope_2nd_order.label = "2nd order gyroscope";
+
+simdata.gyroscope_1st_order = settings_default;
+simdata.gyroscope_1st_order.input_accelerometers = true;
+simdata.gyroscope_1st_order.propagate_bias_s = true;
+simdata.gyroscope_1st_order.propagate_bias_gyro = true;
+simdata.gyroscope_1st_order.propagate_position = true;
+simdata.gyroscope_1st_order.propagate_velocity = true;
+simdata.gyroscope_1st_order.get_model = @D_LG_EKF_Gyro_1st_v4;
+simdata.gyroscope_1st_order.r = pos.bodyCorr;
+simdata.gyroscope_1st_order.N_a = K;
+simdata.gyroscope_1st_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
+simdata.gyroscope_1st_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
+simdata.gyroscope_1st_order.R_pos = pos.sig^2*eye(3);
+simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
+simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
+simdata.gyroscope_1st_order.do_gyro_updates = false;
+simdata.gyroscope_1st_order.do_position_updates = true;
+simdata.gyroscope_1st_order.do_rotation_updates = false;
+simdata.gyroscope_1st_order.label = "1st order gyroscope";
+
 sensorData = struct;
 sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
 sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
@@ -848,8 +899,10 @@ run_settings.save_residuals = true;
 function [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b)
 resSingle = struct;
 resSingle.label = "";
-[~, resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
+[~, resSingle.gyroscope_2nd_order] = run_filter(sensorData, init, simdata.gyroscope_2nd_order,run_settings, S_true);
+% [~, resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
 % [~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
+[~,resSingle.gyroscope_1st_order] = run_filter(sensorData, init, simdata.gyroscope_1st_order,run_settings, S_true);
 
 %
 true_traj = struct;
@@ -868,10 +921,46 @@ resSingle.True.res = true_traj;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% plotResults
-function plotResults(meas, resSingle)
+function plotcoord(p,R, linewidth) 
+quiver3(p(1), p(2), p(3), R(1,1), R(2,1), R(3,1), 'r','linewidth',linewidth); hold on; axis equal; grid on; 
+quiver3(p(1), p(2), p(3), R(1,2), R(2,2), R(3,2), 'g','linewidth',linewidth), 
+quiver3(p(1), p(2), p(3), R(1,3), R(2,3), R(3,3), 'b','linewidth',linewidth);
+
+
+function plotResults(meas, resSingle, r)
+
+data1=resSingle.gyroscope_1st_order.res.filt;
+data2=resSingle.gyroscope_2nd_order.res.filt;
+dataT=resSingle.True.res.filt;
+
+% plot(meas.t, dataT.mean.p); hold on; plot(meas.t, data1.mean.p); 
+
+ntim=length(meas.t);
+for i=1:ntim
+    quat1(:,i) = dcm2quat(squeeze(data1.mean.R(:,:,i)));
+    quat2(:,i) = dcm2quat(squeeze(data2.mean.R(:,:,i)));
+    quatT(:,i) = dcm2quat(squeeze(dataT.mean.R(:,:,i)));
+    if i>1
+        quat1(:,i)=quat1(:,i)*sign(dot(quat1(:,i),quat1(:,i-1)));
+        quat2(:,i)=quat2(:,i)*sign(dot(quat2(:,i),quat2(:,i-1)));
+        quatT(:,i)=quatT(:,i)*sign(dot(quatT(:,i),quatT(:,i-1)));
+    end
+end
+% plot(meas.t, quatT); hold on; plot(meas.t, quat1); 
+for i=1:100:ntim
+    p1 = data1.mean.p(:,i);  R1 = data1.mean.R(:,:,i);
+    p2 = data2.mean.p(:,i);  R2 = data2.mean.R(:,:,i);
+    pT = dataT.mean.p(:,i);  RT = dataT.mean.R(:,:,i);
+    plotcoord (pT, RT,1);
+    plotcoord (p1, R1,2);
+end
+
+
+
+
 
 plotBias = 0;
-plotRotation = 0;
+plotRotation = 1;
 plotPosition = 1;
 
 cases_plot = ["mean_array", "mean_array_omega_dot", "array_1st", "array_2nd","True"];
@@ -1110,203 +1199,5 @@ for idx = 1:length(fields)
     err.std.(fields{idx}) = S_tot.filt.std.(fields{idx});
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%% cardou12axis
-function cardou12axis(data)
-fbarr = data.acc;                   % acceleration measurements
-sbarr = data.origin.acc;                 % acceleration of body c.g.
-ombarr = data.omega;                % omega body
-ombdotarr = data.omegadot;          % omega dot body
-rb = squeeze(data.pos(:,:,1));   % accelerometer position
-
-sz=size(fbarr,3);
-npoints=size(rb,2);
-omb=ombarr(:,1);
-for j=1:sz
-    fb=squeeze(fbarr(:,:,j));
-    omdotb=ombdotarr(:,j);
-    sb=sbarr(:,j);
-
-    for i = 1:npoints
-        rb_ = rb(:,i);
-        fb_ = fb(:,i);
-        test(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_)) - fb_;
-        percent(i)=norm(test(:,i))/norm(fb_)*100;
-        % fb((i*3-2):(i*3)) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
-    end
-
-    acc = fb(:);
-    evecbase = [ 1, 0, 0;
-                 0, 1, 0;
-                 0, 0, 1];
-    evec = repmat(evecbase,npoints,1);
-
-    mdofs = 3*npoints;
-    rvec=zeros(3,mdofs);
-    for i=1:npoints
-        mat=[rb(1:3,i), rb(1:3,i), rb(1:3,i)];
-        rvec(:,(3*i-2):(3*i))=mat;
-    end
-
-    CPM = @(x) [0, -x(3), x(2); x(3), 0, -x(1); -x(2), x(1), 0];
-    Sigmaa = @(x) [0, -x(1), -x(1), 0, x(3), x(2); -x(2), 0, -x(2), x(3), 0, x(1); -x(3), -x(3), 0, x(2), x(1), 0];
-
-    Ap = evec;
-    R = zeros(3, 3*mdofs);
-    F = zeros(mdofs, 3*mdofs);
-    Sigma = zeros(6, 3*mdofs);
-
-    for i = 1:mdofs
-        try
-        F(i,(3*i-2):(3*i)) = evec(i,:);
-        R(:,(3*i-2):(3*i)) = CPM(rvec(:,i));
-        Sigma(:,(3*i-2):(3*i)) = Sigmaa(rvec(:,i)).';
-        catch
-            disp ''
-        end
-    end
-
-    At = F * R.';
-    Ar = F * Sigma.';
-    A = [Ap, At, Ar];
-
-    res = lsqminnorm(A, acc);
-
-    bdotdot = res(1:3);
-    wdot = res(4:6);
-    w0sq = res(7);
-    w1sq = res(8);
-    w2sq = res(9);
-    w1w2 = res(10);
-    w0w2 = res(11);
-    w0w1 = res(12);
-
-    Ws = [-w1sq-w2sq, w0w1, w0w2; w0w1, -w0sq-w2sq, w1w2; w0w2, w1w2, -w0sq-w1sq];
-
-    wCANP = calcCANP(Ws, omb);
-    wCAD = calcCAD(Ws, omb);
-    wCAAD = calcCAAD(Ws, omb);
-    wCAAM = calcCAAM(Ws, omb);
-    omb=wCANP';
-end
-
-disp ''
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%% calcCANP
-function wCANP = calcCANP(Ws, wTA)
-if size(wTA,2)==3
-    wTA=wTA';
-end
-mu2 = -(Ws(1,1)+Ws(2,2)+Ws(3,3));
-s12 = Ws(1,2)^2;
-s23 = Ws(2,3)^2;
-s31 = Ws(3,1)^2;
-s13 = Ws(1,2)*Ws(2,3);
-d12 = Ws(1,1)*Ws(2,2);
-mu1 = d12 + Ws(2,2)*Ws(3,3) + Ws(1,1)*Ws(3,3) - s12 - s23 - s31;
-mu0 = -d12*Ws(3,3) - 2*s13*Ws(3,1) + s12*Ws(3,3) + s23*Ws(1,1) + s31*Ws(2,2);
-ni2 = mu2/3;
-theta2 = ni2^2;
-q = mu1/3 - theta2;
-
-if q >= 0
-    wCANP = [0, 0, 0];
-    return;
-else
-    r = (mu1*ni2 - mu0) / 2 - ni2*theta2;
-    alpha = sqrt(-q);
-    beta = alpha^3;
-end
-
-if beta <= r
-    wCANP = [0, 0, 0];
-    return;
-else
-    lam = 2 * alpha * cos(acos(r / beta) / 3) - ni2;
-    delta = (lam + mu2) / 2;
-end
-
-if delta <= 0 || (lam * mu0) > 0
-    wCANP = [0, 0, 0];
-    return;
-else
-    wcanpnorm = sqrt(delta);
-    zeta11 = Ws(1,1) - lam;
-    zeta22 = Ws(2,2) - lam;
-    zeta33 = Ws(3,3) - lam;
-    ksi11 = zeta22 * zeta33 - s23;
-    ksi22 = zeta33 * zeta11 - s31;
-    ksi33 = zeta11 * zeta22 - s12;
-    ksi12 = Ws(2,3) * Ws(3,1) - Ws(1,2) * Ws(3,3);
-    ksi23 = Ws(1,2) * Ws(3,1) - Ws(2,3) * Ws(1,1);
-    ksi31 = s13 - Ws(3,1) * Ws(2,2);
-    adjX = [ksi11, ksi12, ksi31; ksi12, ksi22, ksi23; ksi31, ksi23, ksi33];
-    v = adjX * wTA;
-    vunit = v / norm(v);
-    wCANP = wcanpnorm * vunit.';
-    return;
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%% calcCAD
-function wCAD = calcCAD(Ws, wTA)
-trWs = trace(Ws);
-if trWs < 0 && sum(abs(wTA)) > 0
-    zeta0 = Ws(1,1) - 0.5 * trWs;
-    zeta1 = Ws(2,2) - 0.5 * trWs;
-    zeta2 = Ws(3,3) - 0.5 * trWs;
-    wCAD0 = sign(wTA(1)) * heaviside(zeta0) * sqrt(zeta0);
-    wCAD1 = sign(wTA(2)) * heaviside(zeta1) * sqrt(zeta1);
-    wCAD2 = sign(wTA(3)) * heaviside(zeta2) * sqrt(zeta2);
-    wCAD = [wCAD0, wCAD1, wCAD2];
-    return;
-else
-    wCAD = [0, 0, 0];
-    return;
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%% calcCAAD
-function wCAAD = calcCAAD(Ws, wTA)
-if size(wTA,2)==3
-    wTA=wTA';
-end
-trWs = trace(Ws);
-if trWs < 0 && sum(abs(wTA)) > 0
-    adjWs = inv(Ws) * det(Ws);
-    wCAADnorm = sqrt(-0.5 * trWs);
-    v = adjWs * wTA;
-    vunit = v / norm(v);
-    wCAAD = wCAADnorm * vunit.';
-    return;
-else
-    wCAAD = [0, 0, 0];
-    return;
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%% calcCAAM
-function wCAAM = calcCAAM(Ws, wTA)
-if size(wTA,1)==3
-    wTA=wTA';
-end
-trWs = trace(Ws);
-if trWs < 0
-    adjWs = inv(Ws) * det(Ws);
-    wCAAMnorm = sqrt(-0.5 * trWs);
-    Xtop = Ws;
-    Xbot = wTA * adjWs;
-    X = [Xtop; Xbot];
-    Y = [0, 0, 0, (-trWs/2)^3];
-    [Q, R] = qr(X);
-    uw = R \ (Q.' * Y.');
-    uwunit = uw / norm(uw);
-    wCAAM = wCAAMnorm * uwunit.';
-    return;
-else
-    wCAAM = [0, 0, 0];
-    return;
-end
 
 
