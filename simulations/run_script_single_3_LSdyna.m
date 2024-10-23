@@ -32,7 +32,7 @@ if 1
         dataParams.timfactor = 1;    dataParams.posfactor = 1;    dataParams.downsamping = 1;
         data=load('../../Data/genData.mat');
     end
-    [tim, world, body, npoints]=getBodyData(data,dataParams);
+    [tim, world, body, npoints, pos]=getBodyData(data,dataParams);
     
     truth.pos = world.origin.pos;
     truth.v = world.origin.vel;
@@ -56,20 +56,26 @@ if 1
     meas.Ts=tim(2)-tim(1);
     meas.Fs=1/meas.Ts;
 
+    biasFactor = 1e-8;%0.05;
+    acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
+
+    noiseFactor = 1e-8;%0.1;
+    acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
     acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
-    gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;
+    gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;  % gyro noise is zero by definition, as gyro is absent
 
-    F_pos = meas.Fs/1;                     % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
+    F_pos = meas.Fs/1;                       % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
     % assert(mod(meas.Fs,F_pos) == 0)
     pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
     pos.inds_update = 1:pos.N_update:meas.N;
 
-    pos.body = [data.coordx(1,:); data.coordx(2,:); data.coordx(3,:)];
-    pos.bodyCorr = squeeze(body.pos(:,:,1));
     pos.noise = nan(3,meas.N);
     % Position update every 10 sample
+
+    pos.sig = 1e-6;%1e-1;                          % Sigma position update
+    pos.Q = eye(3)*pos.sig^2;
     pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
 
     % Release at 15 secs
@@ -79,19 +85,19 @@ if 1
     S_true.w = w_b;
     S_true.p = truth.pos;
     S_true.v = truth.v;
-    S_true.omega_dot = truth.v*0;%w_dot_b;
+    S_true.omega_dot = truth.v*0; %w_dot_b;
 
     A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
     %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
     S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
     b_s_true = -A(4:6,:)*truth.biasAcc;
     S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
-    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias
+    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias is zero by definition as the gyro is absent
     S_true.s = body.acc_origin;                              % body linear acceleration in body frame
 
     settings_default.r = pos.bodyCorr;
     settings_default.T = meas.Ts;
-    settings_default.g = settings_default.g * 0;
+    settings_default.g = settings_default.g * 0;             % in our case g is neglected
 
     % figure(233);
     % plot(tim, squeeze(body.acc(:,17,:))); 
@@ -107,7 +113,7 @@ plotResults(meas, resSingle, settings_default.r);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% getBodyData
-function [tim, world, body, npoints]=getBodyData(dataS, dataParams)
+function [tim, world, body, npoints, pos]=getBodyData(dataS, dataParams)
 if nargin<2
     timfactor = 1;%1e-6;
     posfactor = 1;%1e-3;
@@ -165,7 +171,7 @@ data.velxDC = data.velxDC+data.velxD(:,1);data.velyDC = data.velyDC+data.velyD(:
 data.velxSC = cumsum(data.accxS.*dt,2); data.velySC = cumsum(data.accyS.*dt,2); data.velzSC = cumsum(data.acczS.*dt,2);
 data.velxSC = data.velxSC+data.velxD(:,1);data.velySC = data.velySC+data.velyD(:,1);data.velzSC = data.velzSC+data.velzD(:,1);
 
-indp=5;
+% indp=5;
 % plot(tim,data.velxD(indp,:)); hold on; plot(tim,data.velxS(indp,:)); plot(tim,data.velxDC(indp,:)); plot(tim,data.velxSC(indp,:)); 
 % plot(tim,data.velzD(indp,:)); hold on; plot(tim,data.velzS(indp,:)); plot(tim,data.velzDC(indp,:)); plot(tim,-data.velzSC(indp,:)/10); 
 % plot(tim,data.accxD(indp,:)); hold on; plot(tim,data.accxS(indp,:)); plot(tim,data.accxSD(indp,:)); plot(tim,data.accxDC(indp,:)); plot(tim,data.accxSC(indp,:)); 
@@ -181,8 +187,8 @@ npoints = size(data.coordx,1);
 ntim = length(data.tim);
 
 originNID = 1;%16;
-xdirNID = 6;%15;
-zdirNID = 2;%24;
+xdirNID = 2;%15;
+zdirNID = 4;%24;
 dirX=[data.coordx(xdirNID,:)-data.coordx(originNID,:); 
       data.coordy(xdirNID,:)-data.coordy(originNID,:); 
       data.coordz(xdirNID,:)-data.coordz(originNID,:)];
@@ -232,27 +238,6 @@ for i=1:ntim
     world.omegadot(:,i) = world.rot_wb(:,:,i)*body.omegadot(:,i); 
 end
 
-% Test of omegaB
-% skewMat = @(omega) [0, -omega(3), omega(2);
-%                      omega(3), 0, -omega(1);
-%                     -omega(2), omega(1), 0];
-% for i=1:(ntim-1)
-%     R1=world.rot_wb(:,:,i);
-%     R2=world.rot_wb(:,:,i+1);
-%     omegaWmat=skewMat(world.omega(:,i));
-%     deltaT=tim(i+1)-tim(i);
-%     Rtest=expm(omegaWmat*deltaT)*R1-R2;
-%     test(i)=norm(Rtest,"fro")/norm(R2,"fro")*100;
-%     disp ''
-% end
-
-
-% plot(data.tim, world.omega_qwb(1,:));hold on;plot(data.tim, world.omega_qwb2(1,:));plot(data.tim, world.omegaMat(1,:));
-% plot(data.tim, world.omega_qwb(2,:));hold on;plot(data.tim, world.omega_qwb2(2,:));plot(data.tim, world.omegaMat(2,:));
-% plot(data.tim, world.omega_qwb(3,:));hold on;plot(data.tim, world.omega_qwb2(3,:));plot(data.tim, world.omegaMat(3,:));
-%
-% plot(data.tim, world.omegadot_qwb(2,:));plot(data.tim, world.omegadot_qwb(3,:));
-% plot(data.tim, world.omegadot_2(2,:));plot(data.tim, world.omegadot_2(3,:));
 body.time=data.tim;
 body.pos = zeros(3,npoints, length(tim)); body.vel = zeros(3,npoints, length(tim)); body.acc = zeros(3,npoints, length(tim));
 body.origin.pos = zeros(3, length(tim));  body.origin.vel = zeros(3, length(tim));  body.origin.acc = zeros(3, length(tim));
@@ -273,77 +258,28 @@ for i=1:ntim
     body.origin.pos(:,i) = rot_bw*world.origin.pos(:,i);    
     body.origin.vel(:,i) = rot_bw*world.origin.vel(:,i);    
     body.origin.acc(:,i) = rot_bw*world.origin.acc(:,i);
-
-    % ind=10;
-    % frame=world;
-    % rb_ = frame.pos(:,ind,i);
-    % omb = frame.omega(:,i);
-    % omdotb = frame.omegadot(:,i);
-    % sb = frame.origin.acc(:,i);
-    % vb = frame.origin.vel(:,i);
-    % fb_ = frame.acc(:,ind,i);
-    % testvel(:,i) = vb + cross(omb, rb_);
-    % testacc(:,i) = sb + cross(omdotb, rb_) + cross(omb, cross(omb, rb_));
-    disp ''
 end
-% plot(tim,testvel(1,:)); hold on; plot(tim,squeeze(frame.vel(1,ind,:))); 
-% plot(tim,testvel(3,:)); hold on; plot(tim,squeeze(frame.vel(3,ind,:))); 
-% plot(tim,testvel(2,:)); hold on; plot(tim,squeeze(frame.vel(2,ind,:)));
-
-% plot(tim,testacc(1,:)); hold on; plot(tim,squeeze(frame.acc(1,ind,:))); 
-% plot(tim,testacc(3,:)); hold on; plot(tim,squeeze(frame.acc(3,ind,:))); 
-% plot(tim,testacc(2,:)); hold on; plot(tim,squeeze(frame.acc(2,ind,:))); 
-
 dpos = diff(world.pos,1,3);  dpos(:,:,end+1)=dpos(:,:,end);
 ddpos = diff(dpos,1,3);  ddpos(:,:,end+1)=ddpos(:,:,end);
 for i=1:ntim
     world.vel2(:,:,i)=dpos(:,:,i)./dt(i);
     world.acc2(:,:,i)=ddpos(:,:,i)./dt(i)/dt(i);
 end
-% plot3(squeeze(world.pos(1,:,end)), squeeze(world.pos(2,:,end)), squeeze(world.pos(3,:,end)), 'x'); grid on; axis equal; hold on
-% plot3(squeeze(world.pos(1,:,1)), squeeze(world.pos(2,:,1)), squeeze(world.pos(3,:,1)), 'x'); grid on; axis equal
 
-% figure(354)
-% plot(tim, squeeze(world.vel(1,1,:)), tim, squeeze(world.vel(2,1,:)), tim, squeeze(world.vel(3,1,:))); grid on; hold on
-% % plot(tim, squeeze(world.vel2(1,1,:)), tim, squeeze(world.vel2(2,1,:)), tim, squeeze(world.vel2(3,1,:))); grid on; hold on
-% plot(tim, sqrt(squeeze(world.vel(1,1,:)).^2+squeeze(world.vel(2,1,:)).^2+squeeze(world.vel(3,1,:)).^2));
-% % plot(tim, sqrt(squeeze(world.vel2(1,1,:)).^2+squeeze(world.vel2(2,1,:)).^2+squeeze(world.vel2(3,1,:)).^2));
-% legend('x', 'y', 'z', 'x2', 'y2', 'z2', 'norm1', 'norm2')
-% figure(435)
-% plot(tim, squeeze(world.acc(1,1,:)), tim, squeeze(world.acc(2,1,:)), tim, squeeze(world.acc(3,1,:))); grid on; hold on
-% plot(tim, squeeze(world.acc2(1,1,:)), tim, squeeze(world.acc2(2,1,:)), tim, squeeze(world.acc2(3,1,:))); grid on; hold on
-% plot(tim, sqrt(squeeze(world.acc(1,1,:)).^2+squeeze(world.acc(2,1,:)).^2+squeeze(world.acc(3,1,:)).^2));
-% plot(tim, sqrt(squeeze(world.acc2(1,1,:)).^2+squeeze(world.acc2(2,1,:)).^2+squeeze(world.acc2(3,1,:)).^2));
-% legend('x', 'y', 'z', 'x2', 'y2', 'z2', 'norm1', 'norm2')
+indslist=[1,2,3,4];
+world.pos = world.pos(:,indslist,:); 
+world.vel = world.pos(:,indslist,:); 
+world.acc = world.pos(:,indslist,:); 
+world.vel2 = world.pos(:,indslist,:); 
+world.acc2 = world.pos(:,indslist,:); 
 
-% figure(87);
-% subplot(2,1,1);
-% plot(tim, squeeze(body.acc(1,1,:))); hold on; plot(tim, squeeze(body.acc(2,1,:))); plot(tim, squeeze(body.acc(3,1,:)));
-% legend('x', 'y', 'z');
-% xlabel('Time (s)'); ylabel('Acceleration (m/s^2)');
-% title('Body Acceleration');
-% subplot(2,1,2);
-% plot(tim, squeeze(world.acc(1,1,:))); hold on; plot(tim, squeeze(world.acc(2,1,:))); plot(tim, squeeze(world.acc(3,1,:)));
-% legend('x', 'y', 'z');
-% xlabel('Time (s)'); ylabel('Acceleration (m/s^2)');
-% title('World Acceleration');
+body.pos = body.pos(:,indslist,:); 
+body.vel = body.vel(:,indslist,:); 
+body.acc = body.acc(:,indslist,:); 
+npoints = length(indslist);
 
-% plot(tim, squeeze(body.vel(1,1,:))); hold on; plot(tim, squeeze(body.vel(2,1,:))); plot(tim, squeeze(body.vel(3,1,:)));
-% legend('x', 'y', 'z');
-% xlabel('Time (s)'); ylabel('Velocity (m/s)');
-% title('Body Velocity');
-% subplot(3,1,3);
-% figure(45);
-% subplot(2,1,1)
-% plot(tim, world.origin.pos(:,1)); hold on; grid on;plot(tim, world.origin.pos(:,2)); plot(tim, world.origin.pos(:,3));
-% legend('x', 'y', 'z');
-% xlabel('Time (s)'); ylabel('Position (m)');
-% title('World Position');
-% subplot(2,1,2)
-% plot(tim, squeeze(body.pos(1,1,:))); hold on; grid on; plot(tim, squeeze(body.pos(2,1,:))); plot(tim, squeeze(body.pos(3,1,:)));
-% legend('x', 'y', 'z');
-% xlabel('Time (s)'); ylabel('Position (m)');
-% title('Body Position');
+pos.body = [data.coordx(indslist,1), data.coordy(indslist,1), data.coordz(indslist,1)]';
+pos.bodyCorr = squeeze(body.pos(:,:,1));
 
 disp ''
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -947,17 +883,13 @@ for i=1:ntim
     end
 end
 % plot(meas.t, quatT); hold on; plot(meas.t, quat1); 
-for i=1:100:ntim
+for i=1:10:ntim
     p1 = data1.mean.p(:,i);  R1 = data1.mean.R(:,:,i);
     p2 = data2.mean.p(:,i);  R2 = data2.mean.R(:,:,i);
     pT = dataT.mean.p(:,i);  RT = dataT.mean.R(:,:,i);
     plotcoord (pT, RT,1);
     plotcoord (p1, R1,2);
 end
-
-
-
-
 
 plotBias = 0;
 plotRotation = 1;
