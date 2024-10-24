@@ -58,11 +58,11 @@ if 1
     meas.Ts=tim(2)-tim(1);
     meas.Fs=1/meas.Ts;
 
-    biasFactor = 0.05;   % 1e-8; %  
+    biasFactor = 1e-8; %  0.05;   % 
     acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
 
-    noiseFactor = 0.1; %  1e-8;%
+    noiseFactor = 1e-8;   %   0.1; %  
     acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
     acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
@@ -76,7 +76,7 @@ if 1
     pos.noise = nan(3,meas.N);
     % Position update every 10 sample
 
-    pos.sig = 1e-1;  %   1e-6;%                     % Sigma position update
+    pos.sig = 1e-6;   %   1e-1;  %                     % Sigma position update
     pos.Q = eye(3)*pos.sig^2;
     pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
 
@@ -162,20 +162,20 @@ tim = data.tim;
 dt=diff(tim'); dt(end+1)=dt(end);
 
 % rotate world
-rotElev = rotx(60);
-rotAz = rotz(40);
-rotateWorld = rotAz*rotElev; % eye(3); %
-for i=1:size(data.coordx,1)
-    dis =   rotateWorld*[data.disxS(i,:);  data.disyS(i,:);  data.diszS(i,:)];
-    vel =   rotateWorld*[data.velxS(i,:);  data.velyS(i,:);  data.velzS(i,:)];
-    acc =   rotateWorld*[data.accxS(i,:);  data.accyS(i,:);  data.acczS(i,:)];
-    coord = rotateWorld*[data.coordx(i,:); data.coordy(i,:); data.coordz(i,:)];
-
-    data.disxS(i,:) = dis(1,:);    data.disyS(i,:) = dis(2,:);    data.diszS(i,:) = dis(3,:);
-    data.velxS(i,:) = vel(1,:);    data.velyS(i,:) = vel(2,:);    data.velzS(i,:) = vel(3,:);
-    data.accxS(i,:) = acc(1,:);    data.accyS(i,:) = acc(2,:);    data.acczS(i,:) = acc(3,:);
-    data.coordx(i,:) = coord(1,:); data.coordy(i,:) = coord(2,:); data.coordz(i,:) = coord(3,:);
-end
+% rotElev = rotx(60);
+% rotAz = rotz(40);
+% rotateWorld = rotAz*rotElev; % eye(3); %
+% for i=1:size(data.coordx,1)
+%     dis =   rotateWorld*[data.disxS(i,:);  data.disyS(i,:);  data.diszS(i,:)];
+%     vel =   rotateWorld*[data.velxS(i,:);  data.velyS(i,:);  data.velzS(i,:)];
+%     acc =   rotateWorld*[data.accxS(i,:);  data.accyS(i,:);  data.acczS(i,:)];
+%     coord = rotateWorld*[data.coordx(i,:); data.coordy(i,:); data.coordz(i,:)];
+% 
+%     data.disxS(i,:) = dis(1,:);    data.disyS(i,:) = dis(2,:);    data.diszS(i,:) = dis(3,:);
+%     data.velxS(i,:) = vel(1,:);    data.velyS(i,:) = vel(2,:);    data.velzS(i,:) = vel(3,:);
+%     data.accxS(i,:) = acc(1,:);    data.accyS(i,:) = acc(2,:);    data.acczS(i,:) = acc(3,:);
+%     data.coordx(i,:) = coord(1,:); data.coordy(i,:) = coord(2,:); data.coordz(i,:) = coord(3,:);
+% end
 
 % recalculation of velocities and accelerations
 data.velxD = diff(data.coordx,1,2)./diff(data.tim');    data.velyD = diff(data.coordy,1,2)./diff(data.tim)';   data.velzD = diff(data.coordz,1,2)./diff(data.tim');

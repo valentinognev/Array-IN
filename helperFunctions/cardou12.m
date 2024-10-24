@@ -33,13 +33,9 @@ F = zeros(mdofs, 3*mdofs);
 Sigma = zeros(6, 3*mdofs);
 
 for i = 1:mdofs
-    try
-        F(i,(3*i-2):(3*i)) = evec(i,:);
-        R(:,(3*i-2):(3*i)) = CPM(rvec(:,i));
-        Sigma(:,(3*i-2):(3*i)) = Sigmaa(rvec(:,i)).';
-    catch
-        disp ''
-    end
+    F(i,(3*i-2):(3*i)) = evec(i,:);
+    R(:,(3*i-2):(3*i)) = CPM(rvec(:,i));
+    Sigma(:,(3*i-2):(3*i)) = Sigmaa(rvec(:,i)).';
 end
 
 At = F * R.';

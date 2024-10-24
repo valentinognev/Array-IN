@@ -209,6 +209,7 @@ classdef D_LG_EKF_Gyro_2nd_v4
                 else
                     omega = x(1:3);
                     [bdotdot, omega_dot_b, omega]=cardou12(y(4:end), omega, obj.r, obj.T);
+                    [bdotdot2, omega_dot_b2, omega_b2]=cardou9Wy0(y(4:end), omega, obj.r, obj.T);
                     alpha(1:3,1) = omega_dot_b;
                     alpha(4:6,1) = bdotdot;
                     alpha = alpha + w_alpha;
