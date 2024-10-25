@@ -67,21 +67,8 @@ wCAAM = calcCAAM(Ws, omb)';
 omega_b = wCAAM;
 
 %%% test
-omega_b = wCAAM;
-ksiCAAM=[bdotdot', omega_dot_b', omega_b(1)^2, omega_b(2)^2, omega_b(3)^2, omega_b(2)*omega_b(3), omega_b(1)*omega_b(3), omega_b(1)*omega_b(2)];
-testCAAM=(A*ksiCAAM'-acc)./acc*100;
-
-omega_b = wCAD;
-ksiCAD=[bdotdot', omega_dot_b', omega_b(1)^2, omega_b(2)^2, omega_b(3)^2, omega_b(2)*omega_b(3), omega_b(1)*omega_b(3), omega_b(1)*omega_b(2)];
-testCAD=(A*ksiCAD'-acc)./acc*100;
-
-omega_b = wCANP;
-ksiCANP=[bdotdot', omega_dot_b', omega_b(1)^2, omega_b(2)^2, omega_b(3)^2, omega_b(2)*omega_b(3), omega_b(1)*omega_b(3), omega_b(1)*omega_b(2)];
-testCANP=(A*ksiCANP'-acc)./acc*100;
-
-omega_b = wCAAD;
-ksiCAAD=[bdotdot', omega_dot_b', omega_b(1)^2, omega_b(2)^2, omega_b(3)^2, omega_b(2)*omega_b(3), omega_b(1)*omega_b(3), omega_b(1)*omega_b(2)];
-testCAAD=(A*ksiCAAD'-acc)./acc*100;
+ksi=[bdotdot', omega_dot_b', omega_b(1)^2, omega_b(2)^2, omega_b(3)^2, omega_b(2)*omega_b(3), omega_b(1)*omega_b(3), omega_b(1)*omega_b(2)];
+A*ksi'-acc
 
 disp ''
 

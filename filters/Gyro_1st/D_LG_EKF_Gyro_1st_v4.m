@@ -198,8 +198,8 @@ classdef D_LG_EKF_Gyro_1st_v4
                 omega = y_g - b_g - w_g;
             else
                 omega = y_g;
-                [bdotdot, omega_dot_b, omegaNew]=cardou12(y(4:end), omega, obj.r, obj.T);
-                omega = omegaNew;
+                % [bdotdot2, omega_dot_b2, omegaNew2]=cardou12(y(4:end), omega, obj.r, obj.T);
+                [bdotdot, omega_dot_b, omega]=cardou9Wx0(y(4:end), omega, obj.r, obj.T);
             end
             
             if ~isempty(obj.inds_y_a)
