@@ -28,24 +28,15 @@ if 1
     dataParams.timfactor = 1e-3;    dataParams.posfactor = 1e-3;    dataParams.downsamping = 1;
     data=readtable('../../Data/cf_2004_re00.csv');
 
-    [tim, world, body, npoints, pos]=getCFBodyData(data, dataParams);
+    [tim, world, body]=getCFBodyData(data, dataParams);
 
     
-    truth.pos = world.origin.pos;
-    truth.v = world.origin.vel;
-    truth.a = world.origin.acc;
-    truth.R_nb = world.rot_wb;
-    truth.R_bn = world.rot_bw;
+    truth.pos = world.pos;
+    truth.v = world.vel;
 
     ntim=length(tim);
-    acc_u=zeros(3*npoints,ntim);
-    body.acc_origin = body.origin.acc;
-    for i=1:ntim
-        bacc=body.acc(:,:,i);
-        acc_u(:,i) = bacc(:);
-    end
-    truth.acc_u=acc_u;
-    truth.gyro_u=truth.v*0;
+    truth.acc_u=body.acc;
+    truth.gyro_u=body.omega;
 
     meas.N=ntim;
     meas.t=tim;
@@ -55,12 +46,12 @@ if 1
 
     biasFactor = 0.05;   %   1e-8; %  
     acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
-    truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
+    truth.biasAcc = acc.init_b_a*randn(3,1);
 
-    noiseFactor = 0.1; %  1e-8;   %   
+    noiseFactor = 0.01; %  1e-8;   %   
     acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
-    acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
-    acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
+    acc.Q = eye(3)*acc.noiseSigDisc^2;
+    acc.noise = chol(acc.Q)*randn(3,meas.N);
     gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;  % gyro noise is zero by definition, as gyro is absent
 
     F_pos = meas.Fs/1;                       % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
@@ -71,7 +62,7 @@ if 1
     pos.noise = nan(3,meas.N);
     % Position update every 10 sample
 
-    pos.sig = 1e-1;  %   1e-6;   %                     % Sigma position update
+    pos.sig =  1e-3;   %                     % Sigma position update
     pos.Q = eye(3)*pos.sig^2;
     pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
 
@@ -84,13 +75,13 @@ if 1
     S_true.v = truth.v;
     S_true.omega_dot = truth.v*0; %w_dot_b;
 
-    A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
-    %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
+    % A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
+    % %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
     S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
-    b_s_true = -A(4:6,:)*truth.biasAcc;
+    b_s_true = -truth.biasAcc;
     S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
     S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias is zero by definition as the gyro is absent
-    S_true.s = body.acc_origin;                              % body linear acceleration in body frame
+    S_true.s = body.acc*0;                              % body linear acceleration in body frame
 
     settings_default.r = pos.bodyCorr;
     settings_default.T = meas.Ts;
@@ -110,7 +101,7 @@ plotResults(meas, resSingle, settings_default.r);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% getBodyData
-function [tim, world, body, npoints, pos]=getCFBodyData(dataS, dataParams)
+function [tim, world, body]=getCFBodyData(dataS, dataParams)
 if nargin<2
     dataParams.timfactor = 1;%1e-6;
     dataParams.posfactor = 1;%1e-3;
@@ -138,13 +129,13 @@ data.tim=dataS.tick(indzd)*timfactor;
 tim = data.tim;
 
 world.time=data.tim;
-world.pos = data.coord;
-world.vel = data.vel;
+world.pos = data.coord';
+world.vel = data.vel';
 
 % calculation of body angular velocity - omega
-body.omega = data.gyro;
-body.acc = data.acc;
-body.yprAngles=data.angle;
+body.omega = data.gyro';
+body.acc = data.acc';
+body.yprAngles=data.angle';
 
 disp ''
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -584,7 +575,7 @@ function [init, simdata, sensorData, run_settings] = setSimulationParameters(acc
 % Initial values
 
 rng("default");
-K = size(pos.body,2); % Number of acc triads
+K = 1; % Number of acc triads
 
 init = struct;
 init.cov.R = eye(3)*deg2rad(1)^2;
@@ -593,9 +584,9 @@ init.cov.v = eye(3)*0.1^2;
 init.cov.omega = gyro.Q*2;
 
 init.mean.R = truth.R_nb(:,:,1)*expSO3(chol(init.cov.R)*randn(3,1));
-init.mean.p = truth.pos(:,1) + pos.noise(:,1);
+init.mean.p = truth.pos(:,1) ;
 init.mean.v = truth.v(:,1) + chol(init.cov.v)*randn(3,1);
-init.mean.omega = truth.gyro_u(:,1) + gyro.noise(:,1);
+init.mean.omega = truth.gyro_u(:,1);
 
 init.mean.b_a = zeros(3*K,1);
 init.cov.b_a = acc.init_b_a^2*eye(3*K)*3;
@@ -609,25 +600,6 @@ init.cov.b_g = eye(3)*gyro.init_b_g^2/K*3;
 % Models
 
 simdata = struct;
-simdata.gyroscope_2nd_order = settings_default;
-simdata.gyroscope_2nd_order.propagate_bias_gyro = true;
-simdata.gyroscope_2nd_order.input_accelerometers = true;
-simdata.gyroscope_2nd_order.propagate_position = true;
-simdata.gyroscope_2nd_order.propagate_velocity = true;
-simdata.gyroscope_2nd_order.propagate_bias_s = true;
-simdata.gyroscope_2nd_order.set_T2_R_zero = false;
-simdata.gyroscope_2nd_order.get_model = @D_LG_EKF_Gyro_2nd_v4;
-simdata.gyroscope_2nd_order.r = pos.bodyCorr;
-simdata.gyroscope_2nd_order.Q_acc = acc.noiseSigDisc^2*eye(3*K);
-simdata.gyroscope_2nd_order.Q_bias_acc = acc.Q_b_a^2*eye(3*K);
-simdata.gyroscope_2nd_order.R_pos = pos.sig^2*eye(3);
-simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
-simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
-simdata.gyroscope_2nd_order.do_gyro_updates = false;
-simdata.gyroscope_2nd_order.do_position_updates = true;
-simdata.gyroscope_2nd_order.do_rotation_updates = false;
-simdata.gyroscope_2nd_order.label = "2nd order gyroscope";
-
 simdata.gyroscope_1st_order = settings_default;
 simdata.gyroscope_1st_order.input_accelerometers = true;
 simdata.gyroscope_1st_order.propagate_bias_s = true;
@@ -648,9 +620,9 @@ simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
 sensorData = struct;
-sensorData.acc_measurements = truth.acc_u + truth.biasAcc + acc.noise;
-sensorData.gyro_measurements = truth.gyro_u + truth.biasGyro + gyro.noise;
-sensorData.position_measurements = truth.pos + pos.noise;
+sensorData.acc_measurements = truth.acc_u;
+sensorData.gyro_measurements = truth.gyro_u;
+sensorData.position_measurements = truth.pos;
 
 % Run filters
 run_settings = struct;
@@ -664,9 +636,6 @@ run_settings.save_residuals = true;
 function [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b)
 resSingle = struct;
 resSingle.label = "";
-[~, resSingle.gyroscope_2nd_order] = run_filter(sensorData, init, simdata.gyroscope_2nd_order,run_settings, S_true);
-% [~, resSingle.accelerometer_array_1st_order] = run_filter(sensorData, init, simdata.accelerometer_array_1st_order, run_settings, S_true);
-% [~, resSingle.accelerometer_array_2nd_order] = run_filter(sensorData, init, simdata.accelerometer_array_2nd_order, run_settings, S_true);
 [~,resSingle.gyroscope_1st_order] = run_filter(sensorData, init, simdata.gyroscope_1st_order,run_settings, S_true);
 
 %
@@ -697,7 +666,6 @@ quiver3(p(1), p(2), p(3), R(1,3), R(2,3), R(3,3), 'b','linewidth',linewidth);
 function plotResults(meas, resSingle, r)
 
 data1=resSingle.gyroscope_1st_order.res.filt;
-data2=resSingle.gyroscope_2nd_order.res.filt;
 dataT=resSingle.True.res.filt;
 
 % plot(meas.t, dataT.mean.p); hold on; plot(meas.t, data1.mean.p); 
@@ -705,21 +673,17 @@ dataT=resSingle.True.res.filt;
 ntim=length(meas.t);
 for i=1:ntim
     quat1(:,i) = dcm2quat(squeeze(data1.mean.R(:,:,i)));
-    quat2(:,i) = dcm2quat(squeeze(data2.mean.R(:,:,i)));
     quatT(:,i) = dcm2quat(squeeze(dataT.mean.R(:,:,i)));
     if i>1
         quat1(:,i)=quat1(:,i)*sign(dot(quat1(:,i),quat1(:,i-1)));
-        quat2(:,i)=quat2(:,i)*sign(dot(quat2(:,i),quat2(:,i-1)));
         quatT(:,i)=quatT(:,i)*sign(dot(quatT(:,i),quatT(:,i-1)));
     end
 end
 % plot(meas.t, quatT); hold on; plot(meas.t, quat1); 
 for i=1:round(ntim/100):ntim
     p1 = data1.mean.p(:,i);  R1 = data1.mean.R(:,:,i);
-    p2 = data2.mean.p(:,i);  R2 = data2.mean.R(:,:,i);
     pT = dataT.mean.p(:,i);  RT = dataT.mean.R(:,:,i);
     plotcoord (pT, RT,1);
-    plotcoord (p1, R1,2);
     plotcoord (p2, R2,3);
 end
 
