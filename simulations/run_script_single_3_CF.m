@@ -97,7 +97,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 [init, simdata, sensorData, run_settings] = setSimulationParameters(acc, gyro, pos, truth, settings_default);
 [resSingle]=runSimulation(init, sensorData, simdata, run_settings, truth, S_true, w_b);
-plotResults(meas, resSingle, settings_default.r);
+plotResults(meas, resSingle, settings_default.r,truth);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% getBodyData
@@ -119,23 +119,24 @@ end
 
 indzd=dataS.motor_m1>0;
 %  Downsampling
-data.coord=[dataS.stateEstimate_x(indzd), dataS.stateEstimate_y(indzd), dataS.stateEstimate_z(indzd)]; 
-data.vel  =[dataS.stateEstimate_vx(indzd), dataS.stateEstimate_vy(indzd), dataS.stateEstimate_vz(indzd)];
-data.acc  =[dataS.acc_x(indzd),  dataS.acc_y(indzd),  dataS.acc_z(indzd)];
-data.gyro =[dataS.gyro_x(indzd), dataS.gyro_y(indzd), dataS.gyro_z(indzd)];
-data.angle=[dataS.stateEstimate_yaw, dataS.stateEstimate_pitch, dataS.stateEstimate_roll];
+data.coord=[dataS.stateEstimate_x(indzd), dataS.stateEstimate_y(indzd), dataS.stateEstimate_z(indzd)]'; 
+data.vel  =[dataS.stateEstimate_vx(indzd), dataS.stateEstimate_vy(indzd), dataS.stateEstimate_vz(indzd)]';
+data.acc  =[dataS.acc_x(indzd),  dataS.acc_y(indzd),  dataS.acc_z(indzd)]';
+data.gyro =[dataS.gyro_x(indzd), dataS.gyro_y(indzd), dataS.gyro_z(indzd)]';
+data.angle=[dataS.stateEstimate_yaw(indzd), dataS.stateEstimate_pitch(indzd), dataS.stateEstimate_roll(indzd)]'/180*pi;
 
 data.tim=dataS.tick(indzd)*timfactor;
 tim = data.tim;
+dangle=diff(data.angle,1,2)/((tim(2)-tim(1)));dangle(:,end+1)=dangle(:,end);
 
 world.time=data.tim;
-world.pos = data.coord';
-world.vel = data.vel';
+world.pos = data.coord;
+world.vel = data.vel;
 
 % calculation of body angular velocity - omega
-body.omega = data.gyro';
-body.acc = data.acc';
-body.yprAngles=data.angle';
+body.omega = data.gyro;
+body.acc = data.acc;
+body.yprAngles=data.angle;
 
 disp ''
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -615,7 +616,7 @@ simdata.gyroscope_1st_order.R_pos = pos.sig^2*eye(3);
 simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
 simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.gyroscope_1st_order.do_gyro_updates = false;
-simdata.gyroscope_1st_order.do_position_updates = true;
+simdata.gyroscope_1st_order.do_position_updates = false;
 simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
@@ -663,10 +664,10 @@ quiver3(p(1), p(2), p(3), R(1,3), R(2,3), R(3,3), 'b','linewidth',linewidth);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% plotResults
-function plotResults(meas, resSingle, r)
+function plotResults(meas, resSingle, r, truth)
 
 data1=resSingle.gyroscope_1st_order.res.filt;
-dataT=resSingle.True.res.filt;
+dataT=resSingle.True.res.filt;  dataT.mean.p=truth.pos;
 
 % plot(meas.t, dataT.mean.p); hold on; plot(meas.t, data1.mean.p); 
 
