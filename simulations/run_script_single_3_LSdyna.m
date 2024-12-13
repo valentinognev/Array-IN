@@ -58,7 +58,7 @@ if 1
     meas.Ts=tim(2)-tim(1);
     meas.Fs=1/meas.Ts;
 
-    biasFactor = 0.05;   %   1e-8; %  
+    biasFactor =    1e-8; %  
     acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
 
@@ -771,7 +771,7 @@ simdata.gyroscope_2nd_order.R_pos = pos.sig^2*eye(3);
 simdata.gyroscope_2nd_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
 simdata.gyroscope_2nd_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.gyroscope_2nd_order.do_gyro_updates = false;
-simdata.gyroscope_2nd_order.do_position_updates = true;
+simdata.gyroscope_2nd_order.do_position_updates = false;
 simdata.gyroscope_2nd_order.do_rotation_updates = false;
 simdata.gyroscope_2nd_order.label = "2nd order gyroscope";
 
@@ -790,7 +790,7 @@ simdata.gyroscope_1st_order.R_pos = pos.sig^2*eye(3);
 simdata.gyroscope_1st_order.Q_gyro = gyro.noiseSigDisc^2*eye(3)/K;
 simdata.gyroscope_1st_order.Q_bias_gyro = gyro.Q_b_g^2*eye(3)/K;
 simdata.gyroscope_1st_order.do_gyro_updates = false;
-simdata.gyroscope_1st_order.do_position_updates = true;
+simdata.gyroscope_1st_order.do_position_updates = false;
 simdata.gyroscope_1st_order.do_rotation_updates = false;
 simdata.gyroscope_1st_order.label = "1st order gyroscope";
 
