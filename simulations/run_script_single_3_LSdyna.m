@@ -62,7 +62,7 @@ if 1
     acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
 
-    noiseFactor = 0.1; %  1e-8;   %   
+    noiseFactor = 0.05; %  1e-8;   %   
     acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
     acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
@@ -740,9 +740,9 @@ init.cov.v = eye(3)*0.1^2;
 init.cov.omega = gyro.Q*2;
 
 init.mean.R = truth.R_nb(:,:,1)*expSO3(chol(init.cov.R)*randn(3,1));
-init.mean.p = truth.pos(:,1) + pos.noise(:,1);
-init.mean.v = truth.v(:,1) + chol(init.cov.v)*randn(3,1);
-init.mean.omega = truth.gyro_u(:,1) + gyro.noise(:,1);
+init.mean.p = truth.pos(:,1) + pos.noise(:,1)*0;
+init.mean.v = truth.v(:,1) + chol(init.cov.v)*randn(3,1)*0;
+init.mean.omega = truth.gyro_u(:,1) + gyro.noise(:,1)*0;
 
 init.mean.b_a = zeros(3*K,1);
 init.cov.b_a = acc.init_b_a^2*eye(3*K)*3;
@@ -838,7 +838,26 @@ quiver3(p(1), p(2), p(3), R(1,1), R(2,1), R(3,1), 'r','linewidth',linewidth); ho
 quiver3(p(1), p(2), p(3), R(1,2), R(2,2), R(3,2), 'g','linewidth',linewidth), 
 quiver3(p(1), p(2), p(3), R(1,3), R(2,3), R(3,3), 'b','linewidth',linewidth);
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function plotbox(p, R, linewidth, color)
+box = [-1, -1, -1;
+        1, -1, -1;
+        1,  1, -1;
+       -1,  1, -1;
+       -1, -1,  1;
+        1, -1,  1;
+        1,  1,  1;
+       -1,  1,  1]*.5;
+box=R*box'+(p*ones(1,8));
+box=box';
+inds=[1,2,3,4,1,5,6,7,8,5,nan, 2,6,nan, 3,7,nan, 4,8];
+naninds=isnan(inds);
+inds(naninds)=1;
+x=box(inds,1);   y=box(inds,2);   z=box(inds,3);
+x(naninds)=nan;  y(naninds)=nan;  z(naninds)=nan;
+plot3(x,y,z, color, 'linewidth',linewidth); hold on; 
+xlabel('x [m]'); ylabel('y [m]'); zlabel('z [m]');
+axis equal; grid on;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% plotResults
 function plotResults(meas, resSingle, r)
@@ -861,13 +880,25 @@ for i=1:ntim
     end
 end
 % plot(meas.t, quatT); hold on; plot(meas.t, quat1); 
+lims=[min(dataT.mean.p,[],2), max(dataT.mean.p,[],2)];
+dif=lims(:,2)-lims(:,1);
+lims(:,1)=lims(:,1)-0.1*dif;
+lims(:,2)=lims(:,2)+0.2*dif;
+lims(2,:)=[2,2];
+lims(3,:)=[-4,1];
 for i=1:round(ntim/100):ntim
     p1 = data1.mean.p(:,i);  R1 = data1.mean.R(:,:,i);
     p2 = data2.mean.p(:,i);  R2 = data2.mean.R(:,:,i);
     pT = dataT.mean.p(:,i);  RT = dataT.mean.R(:,:,i);
     plotcoord (pT, RT,1);
-    plotcoord (p1, R1,2);
+    % plotcoord (p1, R1,2);
     plotcoord (p2, R2,3);
+
+    plotbox(pT, RT, 3, 'r');   
+    % plotbox(p1, R1, 2, 'b');
+    plotbox(p2, R2, 2, 'g');
+
+    xlim(lims(1,:)); ylim(lims(2,:)); zlim(lims(3,:));
 end
 
 plotBias = 0;
