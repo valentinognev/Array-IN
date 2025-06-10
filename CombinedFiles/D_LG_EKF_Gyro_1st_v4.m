@@ -1,4 +1,4 @@
-classdef D_LG_EKF_Gyro_2nd_v4
+classdef D_LG_EKF_Gyro_1st_v4
     %D_LG_EKF_CLASSIC Summary of this class goes here
     %   Detailed explanation goes here
 %  alpha = [omega_dot; s]
@@ -11,7 +11,7 @@ classdef D_LG_EKF_Gyro_2nd_v4
         inds_b_g = []           % Bias in gyroscope 
         inds_b_s = []           % Bias in specific force
         inds_w_g = 1:3          % white noise gyro
-        inds_w_alpha = []       % alpha white noise
+        inds_w_s = []       % alpha white noise
         inds_w_b_g = []         % Process noise bias gyroscope
         inds_w_b_s = []         % Process noise bias specific force        
         inds_y_g = 1:3
@@ -30,7 +30,7 @@ classdef D_LG_EKF_Gyro_2nd_v4
         R_rot
     end    
     methods
-        function obj = D_LG_EKF_Gyro_2nd_v4(settings)
+        function obj = D_LG_EKF_Gyro_1st_v4(settings)
             %D_LG_EKF_CLASSIC Construct an instance of this class
             %   Detailed explanation goes here
             % Assume one gyro
@@ -38,12 +38,6 @@ classdef D_LG_EKF_Gyro_2nd_v4
             obj.T = settings.T;
             obj.g = settings.g;
             
-            if isfield(settings, "set_T2_R_zero") && settings.("set_T2_R_zero")
-                obj.T2_R = 0;
-            else
-                obj.T2_R = obj.T^2;
-            end
-
             % R, p, v, omega
             Nx = 3; % Rotation
             Nw = 3;
@@ -58,18 +52,19 @@ classdef D_LG_EKF_Gyro_2nd_v4
             if isfield(settings,"input_accelerometers") && ~settings.input_accelerometers
                 
             else
-                obj.N_a = size(settings.r,2);
-                obj.r = settings.r;                
-                obj.A = compute_A_non_center(obj.r);
-                obj.A_omega_dot = obj.A(1:3,:);
-                obj.A_s = obj.A(4:6,:);
-                
-                
+                if isfield(settings,"N_a")
+                    obj.N_a = settings.N_a;
+                    obj.A_s = repmat(eye(3), 1, obj.N_a)/obj.N_a;
+                else
+                    error("N_a")
+                end
+
+                obj.r = settings.r;
                 obj.inds_y_a = (1:3*obj.N_a) + Ny;
                 Ny = Ny + 3*obj.N_a;
                 
-                obj.inds_w_alpha = (1:6) + Nw;
-                Nw = Nw + 6;
+                obj.inds_w_s = (1:3) + Nw;
+                Nw = Nw + 3;
                 
                 if isfield(settings,"propagate_position") && settings.propagate_position
                     obj.inds_p = (1:3) + Nx;
@@ -105,21 +100,21 @@ classdef D_LG_EKF_Gyro_2nd_v4
                 Q(obj.inds_w_b_g,obj.inds_w_b_g) = settings.Q_bias_gyro;
             end
             
-            if ~isempty(obj.inds_w_alpha)
-                if isfield(settings,"Q_alpha")
-                    Q(obj.inds_w_alpha, obj.inds_w_alpha) = settings.Q_alpha;
+            if ~isempty(obj.inds_w_s)
+                if isfield(settings,"Q_s")
+                    Q(obj.inds_w_s, obj.inds_w_s) = settings.Q_s;
                 elseif isfield(settings,"Q_acc")
-                    Q(obj.inds_w_alpha, obj.inds_w_alpha) = obj.A*settings.Q_acc*obj.A';
+                    Q(obj.inds_w_s, obj.inds_w_s) = obj.A_s*settings.Q_acc*obj.A_s';
                 else
-                    error("No covariance for alpha")
+                    error("No covariance for s")
                 end
             end
 
             if ~isempty(obj.inds_w_b_s) 
                 if isfield(settings,"Q_bias_s")
-                    Q(obj.inds_w_b_s,obj.inds_w_b_s) = settings.Q_bias_s;
+                    Q(obj.inds_w_b_s, obj.inds_w_b_s) = settings.Q_bias_s;
                 elseif isfield(settings,"Q_bias_acc")
-                    Q(obj.inds_w_b_s,obj.inds_w_b_s) = obj.A_s*settings.Q_bias_acc*obj.A_s';
+                    Q(obj.inds_w_b_s, obj.inds_w_b_s) = obj.A_s*settings.Q_bias_acc*obj.A_s';
                 else
                     error("No covariance for bias s")
                 end
@@ -180,10 +175,10 @@ classdef D_LG_EKF_Gyro_2nd_v4
             
             % Process noise
             w_g = w(obj.inds_w_g);     % alpha
-            if ~isempty(obj.inds_w_alpha)
-                w_alpha = w(obj.inds_w_alpha);
+            if ~isempty(obj.inds_w_s)
+                w_s = w(obj.inds_w_s);
             else
-                w_alpha = zeros(6,1);
+                w_s = zeros(3,1);
             end
                 
             if ~isempty(obj.inds_w_b_s)
@@ -197,38 +192,29 @@ classdef D_LG_EKF_Gyro_2nd_v4
             else
                 w_b_g = zeros(3,1);   
             end            
-
-           
-            if ~isempty(obj.inds_y_a)
-                if 1
-                    y_g = y(obj.inds_y_g);
-                    omega = y_g - b_g - w_g;
-                    y_a = y(obj.inds_y_a);
-                    h = reshape(HatSO3(omega)^2*obj.r,[],1); % h = h(omega, T_a,r)
-                    alpha = obj.A*(y_a - h) + w_alpha;
-                else
-                    omega = x(1:3);
-                    [bdotdot, omega_dot_b, omega]=cardou12(y(4:end), omega, obj.r, obj.T);
-                    % [bdotdot, omega_dot_b, omega_b]=cardou9Wx0(y(4:end), omega, obj.r, obj.T);
-                    % omega = omega_b;
-                    alpha(1:3,1) = omega_dot_b;
-                    alpha(4:6,1) = bdotdot;
-                    alpha = alpha + w_alpha;
-                end
- 
-                omega_dot = alpha(1:3); % Angular acceleration            
-                s = alpha(4:6) + b_s;   % Specific force
-                v_dot = obj.g + R*s;    % Navigation acceleration
-                
+            
+            y_g = y(obj.inds_y_g);
+            if 0
+                omega = y_g - b_g - w_g;
             else
-                omega_dot = zeros(3,1);
+                omega = y_g;
+                % [bdotdot2, omega_dot_b2, omegaNew2]=cardou12(y(4:end), omega, obj.r, obj.T);
+                [bdotdot, omega_dot_b, omega]=cardou9Wx0(y(4:end), omega, obj.r, obj.T);
+            end
+            
+            if ~isempty(obj.inds_y_a)
+                y_a = y(obj.inds_y_a);
+                y_a_mean = bdotdot;% mean(reshape(y_a,3,[]),2);
+                s = y_a_mean + b_s + w_s;   % Specific force
+                v_dot = obj.g + R*s;        % Navigation acceleration             
+            else
                 s = zeros(3,1);
                 v_dot = zeros(3,1);
             end
             
             Omega = zeros(obj.Nx,1);
             % R
-            Omega(obj.inds_R) = omega*obj.T + omega_dot*obj.T2_R/2;
+            Omega(obj.inds_R) = omega*obj.T;
 
             % p
             if ~isempty(obj.inds_p)
@@ -252,27 +238,19 @@ classdef D_LG_EKF_Gyro_2nd_v4
             % Fill Jacobian
             dOmega_de = zeros(obj.Nx, obj.Nx);
             
-            if ~isempty(obj.inds_y_a)
-                d_h_d_omega = compute_d_h_d_omega(obj, omega);
-                d_omega_dot_d_omega = -obj.A_omega_dot*d_h_d_omega;
-            
+            if ~isempty(obj.inds_y_a)            
                 d_v_dot_d_R = -R*HatSO3(s);
-                d_v_dot_d_omega = -R*obj.A_s*d_h_d_omega;
+                d_v_dot_d_b_s = R;
             else
-                d_omega_dot_d_omega = zeros(3,3);
                 d_v_dot_d_R = zeros(3,3);
+                d_v_dot_d_b_s = zeros(3,3);
             end
                         
             % -----------------------------------------------------------------
             % R equation
             if ~isempty(obj.inds_b_g)
                 d_omega_d_b_g = -eye(3);
-                if ~isempty(obj.inds_y_a)
-                    d_omega_dot_d_b_g = d_omega_dot_d_omega*d_omega_d_b_g;
-                else
-                    d_omega_dot_d_b_g = zeros(3,3);
-                end
-                dOmega_de(obj.inds_R, obj.inds_b_g) = d_omega_d_b_g*obj.T + d_omega_dot_d_b_g*obj.T2_R/2;
+                dOmega_de(obj.inds_R, obj.inds_b_g) = d_omega_d_b_g*obj.T;
             end
             
             % nothing in p
@@ -286,11 +264,7 @@ classdef D_LG_EKF_Gyro_2nd_v4
                 if ~isempty(obj.inds_v)
                     dOmega_de(obj.inds_p,obj.inds_v) = eye(3)*obj.T;                  % v
                 end
-                if ~isempty(obj.inds_b_g)
-                    dOmega_de(obj.inds_p, obj.inds_b_g) = d_v_dot_d_omega*d_omega_d_b_g*obj.T^2/2;
-                end                
                 if ~isempty(obj.inds_b_s)
-                    d_v_dot_d_b_s = R;
                     dOmega_de(obj.inds_p,obj.inds_b_s) = d_v_dot_d_b_s*obj.T^2/2; % b_s
                 end
             end
@@ -300,9 +274,6 @@ classdef D_LG_EKF_Gyro_2nd_v4
             if ~isempty(obj.inds_v)
                 dOmega_de(obj.inds_v, obj.inds_R) = d_v_dot_d_R*obj.T;          % R
                 
-                if ~isempty(obj.inds_b_g)
-                    dOmega_de(obj.inds_v, obj.inds_b_g) = d_v_dot_d_omega*d_omega_d_b_g*obj.T;
-                end
                 if ~isempty(obj.inds_b_s)
                     dOmega_de(obj.inds_v,obj.inds_b_s) = d_v_dot_d_b_s*obj.T;         % b_s
                 end
@@ -313,47 +284,29 @@ classdef D_LG_EKF_Gyro_2nd_v4
 
             dOmega_dw = zeros(obj.Nx, obj.Nw);
                         
-            d_omega_dot_d_w_alpha = [eye(3) zeros(3)];
-            d_v_dot_d_w_alpha = [zeros(3) R];
+            d_v_dot_d_w_s = R;
             
             % -----------------------------------------------------------------------------
             % R equation
             d_omega_d_w_g = -eye(3);
-            if ~isempty(obj.inds_y_a)
-                d_omega_dot_d_w_g = d_omega_dot_d_omega*d_omega_d_w_g;
-            else
-                d_omega_dot_d_w_g = zeros(3,3);
-            end
-            dOmega_dw(obj.inds_R, obj.inds_w_g) = d_omega_d_w_g*obj.T + d_omega_dot_d_w_g*obj.T2_R/2;
             
-            if ~isempty(obj.inds_w_alpha)
-                dOmega_dw(obj.inds_R, obj.inds_w_alpha) = d_omega_dot_d_w_alpha*obj.T2_R/2;% w_alpha
-            end
-            
+            dOmega_dw(obj.inds_R, obj.inds_w_g) = d_omega_d_w_g*obj.T;
+                        
             % nothing in w_b_s
             % nothing in w_b_g
             
             % -----------------------------------------------------------------------------
             % p equation
             if ~isempty(obj.inds_p)
-                dOmega_dw(obj.inds_p, obj.inds_w_alpha) = d_v_dot_d_w_alpha*obj.T^2/2;  % w_alpha
-                
-                if ~isempty(obj.inds_w_g)
-                    dOmega_dw(obj.inds_p, obj.inds_w_g) = d_v_dot_d_omega*d_omega_d_w_g*obj.T^2/2;
-                end
-                
+                dOmega_dw(obj.inds_p, obj.inds_w_s) = d_v_dot_d_w_s*obj.T^2/2;  % w_s                                
             end
             % nothing in w_b_s
             % nothing in w_b_g
             
             % -----------------------------------------------------------------------------
             % v equation
-            if ~isempty(obj.inds_v)
-                if ~isempty(obj.inds_w_g)
-                    dOmega_dw(obj.inds_v, obj.inds_w_g) = d_v_dot_d_omega*d_omega_d_w_g*obj.T;
-                end
-                
-                dOmega_dw(obj.inds_v,obj.inds_w_alpha) = d_v_dot_d_w_alpha*obj.T;      % w_alpha
+            if ~isempty(obj.inds_v)                
+                dOmega_dw(obj.inds_v, obj.inds_w_s) = d_v_dot_d_w_s*obj.T;      % w_s
             end
             
             
@@ -376,45 +329,8 @@ classdef D_LG_EKF_Gyro_2nd_v4
             res.dOmega_de = dOmega_de;
             res.dOmega_dw = dOmega_dw;
             res.v_dot = v_dot;
-            res.omega_dot = omega_dot;
             res.s = s;
             res.omega = omega;
-        end
-        function d_h_d_omega = compute_d_h_d_omega(obj, w)
-
-            row1 = 1:3:3*obj.N_a;
-            row2 = 2:3:3*obj.N_a;
-            row3 = 3:3:3*obj.N_a;
-            d_h_d_omega = zeros(3*obj.N_a,3);
-            
-            r1 = obj.r(1,:);
-            r2 = obj.r(2,:);
-            r3 = obj.r(3,:);
-            
-            r1w1 = w(1).*r1;
-            r1w2 = r1.*w(2);
-            r1w3 = r1.*w(3);
-            
-            r2w1 = r2.*w(1);
-            r2w2 = w(2).*r2;
-            r2w3 = r2.*w(3);
-            
-            r3w1 = r3.*w(1);
-            r3w2 = r3.*w(2);
-            r3w3 = w(3).*r3;
-            
-            d_h_d_omega(row1,1) = r2w2 + r3w3;
-            d_h_d_omega(row2,1) = r1w2 - 2*r2w1;
-            d_h_d_omega(row3,1) = r1w3 - 2*r3w1;
-            
-            d_h_d_omega(row1,2) = r2w1 - 2*r1w2;
-            d_h_d_omega(row2,2) = r1w1 + r3w3;
-            d_h_d_omega(row3,2) = r2w3 - 2*r3w2;
-            
-            d_h_d_omega(row1,3) = r3w1 - 2*r1w3;
-            d_h_d_omega(row2,3) = r3w2 - 2*r2w3;
-            d_h_d_omega(row3,3) = r1w1 + r2w2;
-            
         end
         function [e,H,Q] = position_update(obj, p_obs, ~, x_in)
             
@@ -554,30 +470,30 @@ classdef D_LG_EKF_Gyro_2nd_v4
             %------------------------------------------------------------------            
             fprintf("Propagation data:\n")
             fprintf("\tAccelerometer data:\n")
-            if ~isempty(obj.inds_w_alpha)
+            if ~isempty(obj.inds_w_s)
                 try
-                    Q_sqrt = chol(obj.Q(obj.inds_w_alpha, obj.inds_w_alpha));
-                    fprintf("\t\twhite noise chol(Q_alpha) [mixed units]\n")
-                    fprintf("\t\t%10.1e%10.1e%10.1e%10.1e%10.1e%10.1e\n", Q_sqrt')
+                    Q_sqrt = chol(obj.Q(obj.inds_w_s, obj.inds_w_s));
+                    fprintf("\t\twhite noise chol(Q_s) [m/s^2]\n")
+                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_sqrt')
                 catch
-                    Q_tot = (obj.Q(obj.inds_w_alpha, obj.inds_w_alpha));
-                    fprintf("\t\twhite noise Q_alpha [mixed units]^2\n")
-                    fprintf("\t\t%10.1e%10.1e%10.1e%10.1e%10.1e%10.1e\n", Q_tot')
+                    Q_s = (obj.Q(obj.inds_w_s, obj.inds_w_s));
+                    fprintf("\t\twhite noise Q_s [m/s^2]^2\n")
+                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_s')
                 end
             end
             if ~isempty(obj.inds_b_s)
                 try
-                    Q_sqrt = chol(obj.Q(obj.inds_w_b_s, obj.inds_w_b_s));
+                    Q_b_s_sqrt = chol(obj.Q(obj.inds_w_b_s, obj.inds_w_b_s));
                     fprintf("\t\tbias specific force: [m/s^2]\n")
-                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_sqrt')
+                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_b_s_sqrt')
                     fprintf("\t\t[m/s^2]\n")
                 catch
-                    Q_s = obj.Q(obj.inds_w_b_s, obj.inds_w_b_s);
+                    Q_b_s = obj.Q(obj.inds_w_b_s, obj.inds_w_b_s);
                     fprintf("\t\tbias specific force: [m/s^2]^2\n")
-                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_s')
+                    fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_b_s')
                     fprintf("\t\t[m/s^2]^2\n")
 
-                end
+                end   
             end
             
             
@@ -602,15 +518,20 @@ classdef D_LG_EKF_Gyro_2nd_v4
                 fprintf("] [m]\n")
             end
             fprintf("\tGyroscope data:\n")
-            if ~isempty(obj.inds_b_g)
+            if ~isempty(obj.inds_w_g)
+                fprintf("\t\tgyro noise: [deg/s]\n")
+                fprintf("\t\t%10.1e%10.1e%10.1e\n", rad2deg(chol(obj.Q(obj.inds_w_g, obj.inds_w_g)))')
+                fprintf("\t\t[deg/s]\n")
+            end
+            if ~isempty(obj.inds_w_b_g)
                 try
                     Q_sqrt = rad2deg(chol(obj.Q(obj.inds_w_b_g, obj.inds_w_b_g)));
-                    fprintf("\t\tbias gyro noise chol(Q): [deg/s]\n")
+                    fprintf("\t\tbias gyro noise: [deg/s]\n")
                     fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_sqrt')
                     fprintf("\t\t[deg/s]\n")
                 catch
                     Q_b_g = rad2deg(rad2deg(obj.Q(obj.inds_w_b_g, obj.inds_w_b_g)));
-                    fprintf("\t\tbias gyro noise Q: [deg/s]^2\n")
+                    fprintf("\t\tbias gyro noise: [deg/s]^2\n")
                     fprintf("\t\t%10.1e%10.1e%10.1e\n", Q_b_g')
                     fprintf("\t\t[deg/s]^2\n")
 

@@ -24,88 +24,88 @@ mkdir(pathData);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% START INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% if 1
-%     if 0
-%         dataParams.timfactor = 1e-6;    dataParams.posfactor = 1e-3;    dataParams.downsamping = 10;
-%         indslist = [16, 15, 5, 27];
-%         data=load('../../Data/lssimDatad10.mat');
-%     else
-%         dataParams.timfactor = 1;    dataParams.posfactor = 1;    dataParams.downsamping = 1;
-%         indslist = [1, 2, 3, 4];
-%         data=load('../../Data/genData.mat');
-%     end
-%     [tim, world, body, npoints, pos]=getBodyData(data, dataParams, indslist);
-% 
-%     truth.pos = world.origin.pos;
-%     truth.v = world.origin.vel;
-%     truth.a = world.origin.acc;
-%     truth.R_nb = world.rot_wb;
-%     truth.R_bn = world.rot_bw;
-% 
-%     ntim=length(tim);
-%     acc_u=zeros(3*npoints,ntim);
-%     body.acc_origin = body.origin.acc;
-%     for i=1:ntim
-%         bacc=body.acc(:,:,i);
-%         acc_u(:,i) = bacc(:);
-%     end
-%     truth.acc_u=acc_u;
-%     truth.gyro_u=truth.v*0;
-% 
-%     meas.N=ntim;
-%     meas.t=tim;
-%     meas.T_end = tim(end);
-%     meas.Ts=tim(2)-tim(1);
-%     meas.Fs=1/meas.Ts;
-% 
-%     biasFactor =    1e-8; %  
-%     acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
-%     truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
-% 
-%     noiseFactor = 0.05; %  1e-8;   %   
-%     acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
-%     acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
-%     acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
-%     gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;  % gyro noise is zero by definition, as gyro is absent
-% 
-%     F_pos = meas.Fs/1;                       % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
-%     % assert(mod(meas.Fs,F_pos) == 0)
-%     pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
-%     pos.inds_update = 1:pos.N_update:meas.N;
-% 
-%     pos.noise = nan(3,meas.N);
-%     % Position update every 10 sample
-% 
-%     pos.sig = 1e-1;  %   1e-6;   %                     % Sigma position update
-%     pos.Q = eye(3)*pos.sig^2;
-%     pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
-% 
-%     % Release at 15 secs
-%     pos.noise(:,meas.t > meas.time_point_release) = nan;
-% 
-%     S_true.R = truth.R_nb;
-%     S_true.w = w_b;
-%     S_true.p = truth.pos;
-%     S_true.v = truth.v;
-%     S_true.omega_dot = truth.v*0; %w_dot_b;
-% 
-%     A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
-%     %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
-%     S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
-%     b_s_true = -A(4:6,:)*truth.biasAcc;
-%     S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
-%     S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias is zero by definition as the gyro is absent
-%     S_true.s = body.acc_origin;                              % body linear acceleration in body frame
-% 
-%     settings_default.r = pos.bodyCorr;
-%     settings_default.T = meas.Ts;
-%     settings_default.g = settings_default.g * 0;             % in our case g is neglected
-% 
-%     % figure(233);
-%     % plot(tim, squeeze(body.acc(:,17,:))); 
-%     % figure(234);
-%     % plot(tim, body.omega); 
-% end
+if 1
+    if 2
+        dataParams.timfactor = 1e-6;    dataParams.posfactor = 1e-3;    dataParams.downsamping = 100;
+        indslist = [16, 15, 5, 27];
+        data=load('../../Data/lssimDatad10.mat');
+    else
+        dataParams.timfactor = 1;    dataParams.posfactor = 1;    dataParams.downsamping = 1;
+        indslist = [1, 2, 3, 4];
+        data=load('../../Data/genData.mat');
+    end
+    [tim, world, body, npoints, pos]=getBodyData(data, dataParams, indslist);
+    
+    truth.pos = world.origin.pos;
+    truth.v = world.origin.vel;
+    truth.a = world.origin.acc;
+    truth.R_nb = world.rot_wb;
+    truth.R_bn = world.rot_bw;
+
+    ntim=length(tim);
+    acc_u=zeros(3*npoints,ntim);
+    body.acc_origin = body.origin.acc;
+    for i=1:ntim
+        bacc=body.acc(:,:,i);
+        acc_u(:,i) = bacc(:);
+    end
+    truth.acc_u=acc_u;
+    truth.gyro_u=truth.v*0;
+
+    meas.N=ntim;
+    meas.t=tim;
+    meas.T_end = tim(end);
+    meas.Ts=tim(2)-tim(1);
+    meas.Fs=1/meas.Ts;
+
+    biasFactor =    1e-8; %  
+    acc.init_b_a = biasFactor*max(sqrt(sum(truth.a.^2,1)));
+    truth.biasAcc = acc.init_b_a*randn(3*npoints,1);
+
+    noiseFactor = 0.05; %  1e-8;   %   
+    acc.noiseSigDisc = noiseFactor*max(sqrt(sum(truth.a.^2,1)));
+    acc.Q = eye(3*npoints)*acc.noiseSigDisc^2;
+    acc.noise = chol(acc.Q)*randn(3*npoints,meas.N);
+    gyro.noise = chol(gyro.Q)*randn(3,meas.N)*0;  % gyro noise is zero by definition, as gyro is absent
+
+    F_pos = meas.Fs/1;                       % [Hz] Time frequency of position update in simulation, must be divider of sampling frequency
+    % assert(mod(meas.Fs,F_pos) == 0)
+    pos.N_update = floor(meas.Fs/F_pos);     % update position every N steps in simulation
+    pos.inds_update = 1:pos.N_update:meas.N;
+
+    pos.noise = nan(3,meas.N);
+    % Position update every 10 sample
+
+    pos.sig = 1e-1;  %   1e-6;   %                     % Sigma position update
+    pos.Q = eye(3)*pos.sig^2;
+    pos.noise(:,pos.inds_update) = chol(pos.Q)*randn(3, length(pos.inds_update));
+
+    % Release at 15 secs
+    pos.noise(:,meas.t > meas.time_point_release) = nan;
+
+    S_true.R = truth.R_nb;
+    S_true.w = w_b;
+    S_true.p = truth.pos;
+    S_true.v = truth.v;
+    S_true.omega_dot = truth.v*0; %w_dot_b;
+
+    A = compute_A_non_center(pos.bodyCorr);  % Appendix A, "Inertial Navigation using an Inertial sensor array"
+    %b_omega_dot_true = -A(1:3,:)*truth.biasAcc;    % adding measurement bias to all omega_dot values
+    S_true.b_omega_dot = truth.v*0;%repmat(b_omega_dot_true,1,meas.N);  % omega_dot bias
+    b_s_true = -A(4:6,:)*truth.biasAcc;
+    S_true.b_s = repmat(b_s_true,1,meas.N);                  % accelerometer bias
+    S_true.b_g = repmat(truth.biasGyro,1,meas.N);            % gyro bias is zero by definition as the gyro is absent
+    S_true.s = body.acc_origin;                              % body linear acceleration in body frame
+
+    settings_default.r = pos.bodyCorr;
+    settings_default.T = meas.Ts;
+    settings_default.g = settings_default.g * 0;             % in our case g is neglected
+
+    % figure(233);
+    % plot(tim, squeeze(body.acc(:,17,:))); 
+    % figure(234);
+    % plot(tim, body.omega); 
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%% END INJECTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -868,14 +868,7 @@ dataT=resSingle.True.res.filt;
 
 % plot(meas.t, dataT.mean.p); hold on; plot(meas.t, data1.mean.p); 
 
-inds=1:1:meas.N;
-data1.mean.R=data1.mean.R(:,:,inds);
-data1.mean.p=data1.mean.p(:,inds);
-data1.mean.v=data1.mean.v(:,inds);
-meas.t=meas.t(inds);
-meas.N=length(inds);
 ntim=length(meas.t);
-
 for i=1:ntim
     quat1(:,i) = dcm2quat(squeeze(data1.mean.R(:,:,i)));
     quat2(:,i) = dcm2quat(squeeze(data2.mean.R(:,:,i)));
@@ -893,7 +886,7 @@ lims(:,1)=lims(:,1)-0.1*dif;
 lims(:,2)=lims(:,2)+0.2*dif;
 lims(2,:)=[2,2];
 lims(3,:)=[-4,1];
-for i=1:round(ntim/10):ntim
+for i=1:round(ntim/100):ntim
     p1 = data1.mean.p(:,i);  R1 = data1.mean.R(:,:,i);
     p2 = data2.mean.p(:,i);  R2 = data2.mean.R(:,:,i);
     pT = dataT.mean.p(:,i);  RT = dataT.mean.R(:,:,i);
@@ -901,11 +894,11 @@ for i=1:round(ntim/10):ntim
     % plotcoord (p1, R1,2);
     plotcoord (p2, R2,3);
 
-    % plotbox(pT, RT, 3, 'r');   
+    plotbox(pT, RT, 3, 'r');   
     % plotbox(p1, R1, 2, 'b');
-    % plotbox(p2, R2, 2, 'g');
+    plotbox(p2, R2, 2, 'g');
 
-    % xlim(lims(1,:)); ylim(lims(2,:)); zlim(lims(3,:));
+    xlim(lims(1,:)); ylim(lims(2,:)); zlim(lims(3,:));
 end
 
 plotBias = 0;
